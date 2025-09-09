@@ -13,9 +13,11 @@ export default function ProcessorPage() {
                     <thead>
                         <tr>
                             <th>No.</th>
-                            <th>Name</th>
-                            <th>Job</th>
-                            <th>Favorite Color</th>
+                            <th>Create At</th>
+                            <th>Process time</th>
+                            <th>File Name</th>
+                            <th>Type Document</th>
+                            <th>Model</th>
                         </tr>
                     </thead>
                     <tbody>
