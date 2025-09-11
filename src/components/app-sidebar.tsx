@@ -2,23 +2,23 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, FileText } from "lucide-react"
+import { ChartColumn, Cpu, BookOpenText } from "lucide-react"
 
 const navigation = [
     {
         name: "Dashboard",
         href: "/dashboard",
-        icon: LayoutDashboard,
+        icon: ChartColumn,
     },
     {
         name: "Processing",
         href: "/processor",
-        icon: FileText,
+        icon: Cpu,
     },
       {
         name: "Documents",
         href: "/documents",
-        icon: FileText,
+        icon: BookOpenText,
     },
 ]
 
