@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChartColumn, Cpu, BookOpenText } from "lucide-react"
+import { ChartColumn, Cpu, BookOpenText, FileStack } from "lucide-react"
 
 const navigation = [
     {
@@ -18,7 +18,7 @@ const navigation = [
       {
         name: "Documents",
         href: "/documents",
-        icon: BookOpenText,
+        icon: FileStack,
     },
 ]
 

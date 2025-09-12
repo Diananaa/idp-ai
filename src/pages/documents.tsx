@@ -42,11 +42,11 @@ export default function ProcessorPage() {
                     <thead>
                         <tr>
                             <th>No.</th>
-                            <th>Create At</th>
-                            <th>Process time</th>
                             <th>File Name</th>
                             <th>Type Document</th>
                             <th>Model</th>
+                            <th>Process time</th>
+                            <th>Create At</th>
                             <th>Action</th>
                         </tr>
                     </thead>
