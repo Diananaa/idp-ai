@@ -1,124 +1,160 @@
-"use client"
+"use client";
 
-import FileList from "@/components/FileList"
-import FilePreviewModal from "@/components/FilePreviewModal"
-import { useState } from "react"
-// import FileList from "./FileList"
-// import FilePreviewModal from "./FilePreviewModal"
+import { useState } from "react";
+import dynamic from "next/dynamic";
+
+// dynamic import PdfViewer supaya gak error DOMMatrix di server
+const PdfViewer = dynamic(() => import("../components/PdfViewer"), { ssr: false });
+
+interface UploadedFile {
+  file: File;
+  preview: string;
+}
 
 export default function ProcessingPage() {
-  const [files, setFiles] = useState<File[]>([])
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [documentType, setDocumentType] = useState<string>("")
-  const [ocrModel, setOcrModel] = useState<string>("")
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
+  const [documentType, setDocumentType] = useState("");
+  const [ocrModel, setOcrModel] = useState("");
 
-  // handle drag drop
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const droppedFiles = Array.from(event.dataTransfer.files)
-    setFiles((prev) => [...prev, ...droppedFiles])
-  }
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setFiles((prev) => [...prev, ...Array.from(event.target.files)])
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files).map((file) => ({
+        file,
+        preview: URL.createObjectURL(file),
+      }));
+      setFiles((prev) => [...prev, ...newFiles]);
     }
-  }
+  };
 
-  const removeFile = (file: File) => {
-    setFiles((prev) => prev.filter((f) => f !== file))
-  }
+  const handleRemoveFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const closeModal = () => {
+    setSelectedFile(null);
+  };
 
   const handleProcess = () => {
-    if (!documentType || !ocrModel || files.length === 0) {
-      alert("Please select document type, model, and upload files first.")
-      return
+    if (!files.length || !documentType || !ocrModel) {
+      alert("Isi semua form dan upload file dulu ya!");
+      return;
     }
-    alert("Processing started (dummy simulation) 🚀")
-  }
+    alert("Simulasi proses OCR jalan...");
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Processing</h1>
-        <p className="text-muted-foreground">
-          Upload and process your documents with IDP (Intelligent Document Processing)
+    <div className="p-8 bg-base-200 min-h-screen">
+      <div className="max-w-3xl mx-auto bg-base-100 p-6 rounded-2xl shadow-xl">
+        <h1 className="text-3xl font-bold mb-2">Document Processing</h1>
+        <p className="text-gray-500 mb-6">
+          Upload dan proses dokumen menggunakan Intelligent Document Processing (IDP)
         </p>
-      </div>
 
-      {/* Form */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <p className="font-bold mb-2">Document type</p>
+        {/* FORM */}
+        <div className="form-control w-full mb-4">
+          <label className="label font-medium">Document Type</label>
           <select
             className="select select-bordered w-full"
             value={documentType}
             onChange={(e) => setDocumentType(e.target.value)}
           >
-            <option value="">Select document type</option>
-            <option value="KTP">KTP</option>
-            <option value="KK">Kartu Keluarga</option>
-            <option value="Invoice">Invoice</option>
+            <option value="">-- Pilih jenis dokumen --</option>
+            <option value="ktp">KTP</option>
+            <option value="kk">Kartu Keluarga</option>
+            <option value="invoice">Invoice</option>
           </select>
         </div>
 
-        <div>
-          <p className="font-bold mb-2">Model</p>
+        <div className="form-control w-full mb-4">
+          <label className="label font-medium">Model OCR</label>
           <select
             className="select select-bordered w-full"
             value={ocrModel}
             onChange={(e) => setOcrModel(e.target.value)}
           >
-            <option value="">Select OCR model</option>
-            <option value="OpenAI">Open AI</option>
-            <option value="Tesseract">Tesseract</option>
-            <option value="Custom">Custom Model</option>
+            <option value="">-- Pilih model --</option>
+            <option value="openai">Open AI</option>
+            <option value="custom">Custom Model</option>
           </select>
         </div>
-      </div>
 
-      {/* Drag & Drop area */}
-      <div
-        className="border-2 border-dashed border-gray-400 p-10 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-base-200 transition"
-        onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
-      >
-        <p className="mb-3 text-lg font-medium">Drag & drop your files here</p>
-        <input
-          type="file"
-          multiple
-          className="file-input file-input-bordered file-input-primary w-full max-w-xs"
-          onChange={handleFileChange}
-        />
-      </div>
+        {/* FILE UPLOAD */}
+        <div className="mb-4">
+          <label className="label font-medium">Upload Documents</label>
+          <input
+            type="file"
+            multiple
+            onChange={handleFileChange}
+            className="file-input file-input-bordered w-full"
+          />
+        </div>
 
-      {/* File List */}
-      {files.length > 0 && (
-        <FileList
-          files={files}
-          onRemove={removeFile}
-          onPreview={(file) => setSelectedFile(file)}
-        />
-      )}
+        {/* LIST FILES */}
+        {files.length > 0 && (
+          <div className="space-y-2 mb-6">
+            {files.map((f, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between p-3 bg-base-200 rounded-lg"
+              >
+                <span
+                  className="cursor-pointer text-blue-600 hover:underline"
+                  onClick={() => setSelectedFile(f)}
+                >
+                  {f.file.name}
+                </span>
+                <button
+                  className="btn btn-sm btn-error text-white"
+                  onClick={() => handleRemoveFile(idx)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
-      {/* Process Button */}
-      <div className="pt-5">
         <button
-          className="btn btn-primary w-full md:w-auto"
+          className="btn btn-primary w-full"
           onClick={handleProcess}
+          disabled={!files.length}
         >
-          🚀 Start Processing
+          Proses
         </button>
       </div>
 
-      {/* Modal */}
+      {/* MODAL PREVIEW */}
       {selectedFile && (
-        <FilePreviewModal
-          file={selectedFile}
-          onClose={() => setSelectedFile(null)}
-        />
+        <dialog open className="modal modal-open">
+          <div className="modal-box max-w-5xl">
+            <h3 className="font-bold text-lg mb-4">
+              Preview: {selectedFile.file.name}
+            </h3>
+
+            {/* PREVIEW FILE */}
+            {selectedFile.file.type.includes("image") ? (
+              <img
+                src={selectedFile.preview}
+                alt="preview"
+                className="max-h-[600px] mx-auto rounded-lg shadow"
+              />
+            ) : selectedFile.file.type === "application/pdf" ? (
+              <PdfViewer fileUrl={selectedFile.preview} />
+            ) : (
+              <p className="text-center text-gray-500">
+                File type not supported for preview
+              </p>
+            )}
+
+            <div className="modal-action">
+              <button className="btn" onClick={closeModal}>
+                Close
+              </button>
+            </div>
+          </div>
+        </dialog>
       )}
     </div>
-  )
+  );
 }
