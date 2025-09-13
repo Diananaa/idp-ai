@@ -1,27 +1,41 @@
 "use client"
 
 import React, { useState } from "react"
+import { X } from "lucide-react"
+import dynamic from "next/dynamic";
+
+const PdfViewer = dynamic(() => import("../components/PdfViewer"), { ssr: false });
+
+interface UploadedFile {
+  file: File;
+  preview: string;
+}
+
 
 export default function ProcessorPage() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  // const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [documentType, setDocumentType] = useState<string>("")
   const [ocrModel, setOcrModel] = useState<string>("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<any>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) setSelectedFile(file)
-  }
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files).map((file) => ({
+        file,
+        preview: URL.createObjectURL(file),
+      }));
+      setFiles((prev) => [...prev, ...newFiles]);
+    }
+  };
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    setIsDragging(false)
-    const file = event.dataTransfer.files?.[0]
-    if (file) setSelectedFile(file)
-  }
+  const handleRemoveFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -31,7 +45,7 @@ export default function ProcessorPage() {
   const handleDragLeave = () => setIsDragging(false)
 
   const handleProcess = () => {
-    if (!selectedFile || !documentType || !ocrModel) return
+    if (!files || !documentType || !ocrModel) return
     setIsProcessing(true)
     setProgress(0)
     setResult(null)
@@ -52,7 +66,7 @@ export default function ProcessorPage() {
           address: "Jl. Merdeka No. 10, Jakarta",
           docType: documentType,
           model: ocrModel,
-          file: selectedFile.name,
+          // file: selectedFile.name,
         })
       }
     }, 600)
@@ -65,8 +79,9 @@ export default function ProcessorPage() {
     setResult(null)
     setProgress(0)
     setIsProcessing(false)
+    setFiles([])
   }
-
+  console.log('selectedFile', selectedFile)
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -79,16 +94,16 @@ export default function ProcessorPage() {
 
       {/* Drag & Drop Upload Area */}
       <div
-        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition ${
-          isDragging ? "border-blue-400 bg-slate-700" : "border-primary bg-slate-800 hover:bg-slate-700"
-        }`}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
+        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition ${isDragging ? "border-blue-400 bg-slate-700" : "border-primary bg-slate-800 hover:bg-slate-700"
+          }`}
+      // onDrop={handleFileChange}
+      // onDragOver={handleDragOver}
+      // onDragLeave={handleDragLeave}
       >
         <input
           type="file"
           id="file-upload"
+          multiple
           onChange={handleFileChange}
           className="hidden"
         />
@@ -96,11 +111,42 @@ export default function ProcessorPage() {
           <p className="text-lg font-semibold">Drag & Drop your file here</p>
           <p className="text-sm text-muted-foreground">or click to browse</p>
         </label>
-        {selectedFile && (
-          <div className="mt-3 p-2 bg-slate-700 rounded">
-            <p className="text-sm">{selectedFile.name}</p>
+        {
+          files.length > 0 && (
+            <div className="flex flex-col">
+              {
+                files.map((f, idx) => (
+                  <div className="mt-3 p-2 flex w-full justify-between bg-slate-700 hover:bg-slate-500 rounded">
+                    <div className="flex gap-2 items-center">
+                      <p className="text-sm">{f?.file.name}</p>
+                      <p className="text-xs text-slate-400">{f?.file.size}Kb</p>
+                    </div>
+                    <button
+                      className=" btn-error text-white hover:bg-red-700"
+                      onClick={() => handleRemoveFile(idx)}
+                    >
+                      <X />
+                    </button>
+                  </div>
+                ))
+              }
+            </div>
+          )
+        }
+        {/* {selectedFile && (
+          <div className="mt-3 p-2 flex w-full justify-between bg-slate-700 rounded">
+            <div className="flex gap-2 items-center">
+              <p className="text-sm">{selectedFile?.name}</p>
+              <p className="text-xs text-slate-400">{selectedFile?.size}Kb</p>
+            </div>
+            <button
+              className=" btn-error text-white"
+            onClick={() => handleRemoveFile(idx)}
+            >
+              <X />
+            </button>
           </div>
-        )}
+        )} */}
       </div>
 
       {/* Form Pilihan */}
@@ -143,7 +189,7 @@ export default function ProcessorPage() {
         <button
           onClick={handleProcess}
           className="btn btn-primary"
-          disabled={!selectedFile || !documentType || !ocrModel || isProcessing}
+          disabled={!files || !documentType || !ocrModel || isProcessing}
         >
           {isProcessing ? "Processing..." : "Proses"}
         </button>
