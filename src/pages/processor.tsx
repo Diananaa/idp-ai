@@ -1,40 +1,70 @@
 "use client"
 
-import FileList from "@/components/FileList"
-import FilePreviewModal from "@/components/FilePreviewModal"
-import { useState } from "react"
-// import FileList from "./FileList"
-// import FilePreviewModal from "./FilePreviewModal"
+import React, { useState } from "react"
 
-export default function ProcessingPage() {
-  const [files, setFiles] = useState<File[]>([])
+export default function ProcessorPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [documentType, setDocumentType] = useState<string>("")
   const [ocrModel, setOcrModel] = useState<string>("")
-
-  // handle drag drop
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const droppedFiles = Array.from(event.dataTransfer.files)
-    setFiles((prev) => [...prev, ...droppedFiles])
-  }
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [result, setResult] = useState<any>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setFiles((prev) => [...prev, ...Array.from(event.target.files)])
-    }
+    const file = event.target.files?.[0]
+    if (file) setSelectedFile(file)
   }
 
-  const removeFile = (file: File) => {
-    setFiles((prev) => prev.filter((f) => f !== file))
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragging(false)
+    const file = event.dataTransfer.files?.[0]
+    if (file) setSelectedFile(file)
   }
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => setIsDragging(false)
 
   const handleProcess = () => {
-    if (!documentType || !ocrModel || files.length === 0) {
-      alert("Please select document type, model, and upload files first.")
-      return
-    }
-    alert("Processing started (dummy simulation) 🚀")
+    if (!selectedFile || !documentType || !ocrModel) return
+    setIsProcessing(true)
+    setProgress(0)
+    setResult(null)
+
+    // Simulate step-by-step progress
+    let current = 0
+    const interval = setInterval(() => {
+      current += 20
+      setProgress(current)
+      if (current >= 100) {
+        clearInterval(interval)
+        setIsProcessing(false)
+        // Dummy result
+        setResult({
+          name: "Budi Santoso",
+          nik: "1234567890123456",
+          dob: "1986-07-15",
+          address: "Jl. Merdeka No. 10, Jakarta",
+          docType: documentType,
+          model: ocrModel,
+          file: selectedFile.name,
+        })
+      }
+    }, 600)
+  }
+
+  const handleReset = () => {
+    setSelectedFile(null)
+    setDocumentType("")
+    setOcrModel("")
+    setResult(null)
+    setProgress(0)
+    setIsProcessing(false)
   }
 
   return (
@@ -43,22 +73,50 @@ export default function ProcessingPage() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Processing</h1>
         <p className="text-muted-foreground">
-          Upload and process your documents with IDP (Intelligent Document Processing)
+          Intelligent Document Processing – Upload and process your documents with AI
         </p>
       </div>
 
-      {/* Form */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Drag & Drop Upload Area */}
+      <div
+        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition ${
+          isDragging ? "border-blue-400 bg-slate-700" : "border-primary bg-slate-800 hover:bg-slate-700"
+        }`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
+        <input
+          type="file"
+          id="file-upload"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        <label htmlFor="file-upload" className="cursor-pointer">
+          <p className="text-lg font-semibold">Drag & Drop your file here</p>
+          <p className="text-sm text-muted-foreground">or click to browse</p>
+        </label>
+        {selectedFile && (
+          <div className="mt-3 p-2 bg-slate-700 rounded">
+            <p className="text-sm">{selectedFile.name}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Form Pilihan */}
+      <div className="grid gap-4 md:grid-cols-2">
         <div>
           <p className="font-bold mb-2">Document type</p>
           <select
-            className="select select-bordered w-full"
             value={documentType}
             onChange={(e) => setDocumentType(e.target.value)}
+            className="select w-full bg-slate-800"
           >
-            <option value="">Select document type</option>
+            <option value="" disabled>
+              Select type
+            </option>
             <option value="KTP">KTP</option>
-            <option value="KK">Kartu Keluarga</option>
+            <option value="Kartu Keluarga">Kartu Keluarga</option>
             <option value="Invoice">Invoice</option>
           </select>
         </div>
@@ -66,11 +124,13 @@ export default function ProcessingPage() {
         <div>
           <p className="font-bold mb-2">Model</p>
           <select
-            className="select select-bordered w-full"
             value={ocrModel}
             onChange={(e) => setOcrModel(e.target.value)}
+            className="select w-full bg-slate-800"
           >
-            <option value="">Select OCR model</option>
+            <option value="" disabled>
+              Select model
+            </option>
             <option value="OpenAI">Open AI</option>
             <option value="Tesseract">Tesseract</option>
             <option value="Custom">Custom Model</option>
@@ -78,46 +138,42 @@ export default function ProcessingPage() {
         </div>
       </div>
 
-      {/* Drag & Drop area */}
-      <div
-        className="border-2 border-dashed border-gray-400 p-10 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-base-200 transition"
-        onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
-      >
-        <p className="mb-3 text-lg font-medium">Drag & drop your files here</p>
-        <input
-          type="file"
-          multiple
-          className="file-input file-input-bordered file-input-primary w-full max-w-xs"
-          onChange={handleFileChange}
-        />
-      </div>
-
-      {/* File List */}
-      {files.length > 0 && (
-        <FileList
-          files={files}
-          onRemove={removeFile}
-          onPreview={(file) => setSelectedFile(file)}
-        />
-      )}
-
-      {/* Process Button */}
-      <div className="pt-5">
+      {/* Actions */}
+      <div className="flex gap-4">
         <button
-          className="btn btn-primary w-full md:w-auto"
           onClick={handleProcess}
+          className="btn btn-primary"
+          disabled={!selectedFile || !documentType || !ocrModel || isProcessing}
         >
-          🚀 Start Processing
+          {isProcessing ? "Processing..." : "Proses"}
+        </button>
+        <button
+          onClick={handleReset}
+          className="btn btn-outline"
+          disabled={isProcessing}
+        >
+          Reset
         </button>
       </div>
 
-      {/* Modal */}
-      {selectedFile && (
-        <FilePreviewModal
-          file={selectedFile}
-          onClose={() => setSelectedFile(null)}
-        />
+      {/* Progress Bar */}
+      {isProcessing && (
+        <div className="w-full bg-slate-700 rounded-full h-3 mt-4">
+          <div
+            className="bg-blue-500 h-3 rounded-full transition-all"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+
+      {/* Result Preview */}
+      {result && (
+        <div className="bg-slate-800 p-4 rounded-xl mt-6">
+          <h2 className="text-xl font-semibold mb-2">Extracted Data</h2>
+          <pre className="text-sm bg-slate-900 p-3 rounded-lg overflow-x-auto">
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </div>
       )}
     </div>
   )
