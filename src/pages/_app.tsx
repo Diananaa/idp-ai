@@ -8,7 +8,7 @@ export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
 
   // Daftar halaman yang tidak perlu layout
-  const noLayoutPages = ["/login"];
+  const noLayoutPages = ["/login", "/Home"];
 
   const isNoLayout = noLayoutPages.includes(router.pathname);
 

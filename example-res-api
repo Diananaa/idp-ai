@@ -1,0 +1,110 @@
+tabel user:
+{
+    id: 'number',
+    email: 'string',
+    password: 'string',
+    createdAt: 'date',
+}
+
+tabel file:
+{
+    id: 'number',
+    fileName: 'string',
+    filePath: 'string',
+documentTypeID: 'number', // foreign key to documentType table
+    modelID: 'number', // foreign key to model table
+    isSuccess: 'boolean', // true if the file is processed successfully, false if the file is not processed successfully
+    processTime: 'number',
+    createAt: 'date',
+    userID: 'number', // foreign key to user table
+    OCRResult: 'string', // result of the OCR process
+}
+
+tabel model:
+{
+    id: 'number',   
+    name: 'string',
+    createdAt: 'date',
+}
+
+tabel documentType:
+{
+    id: 'number',
+    name: 'string',
+    createdAt: 'date',
+}
+
+------ POST api/login 
+status code = 200
+payload request = json body 
+
+{
+    email: 'string',
+    password: 'string'
+}
+
+------ POST api/logout 
+
+
+------ POST api/register
+{
+    email: 'string',
+    password: 'string'
+}
+
+------ POST  api/file (multipart/form-data)
+{
+    file: 'file',
+    documentTypeID: 'number',
+    modelID: 'number',
+    userID: 'number',
+
+}
+
+------ GET api/file
+// page = 1, limit = 10, total = 100, totalPages = 10
+// api/file?page=1&limit=10&search='keyword'&sort='createdAt'&sortType='asc'
+{
+    page: 'number',
+    total: 'number',
+    limit: 'number',
+    totalPages: 'number',
+    status: 'string',
+    message: 'string',
+    data: [
+        {
+            id: 'number',
+            fileName: 'string',
+            filePath: 'string',
+        documentType: 'string', // foreign key to documentType table
+            model: 'string', // foreign key to model table
+            isSuccess: 'boolean', // true if the file is processed successfully, false if the file is not processed successfully
+            processTime: 'number',
+            createAt: 'date',
+        }
+    ]
+}
+
+------ delete api/file/<id>
+
+
+------ GET api/file/<id>
+{
+    status: 'string',
+    message: 'string',
+    data: {
+        id: 'number',
+        fileName: 'string',
+        filePath: 'string',
+    documentType: 'string', // foreign key to documentType table
+        model: 'string', // foreign key to model table
+        isSuccess: 'boolean', // true if the file is processed successfully, false if the file is not processed successfully
+        processTime: 'number',
+        createAt: 'date',
+        OCRResult: 'string', 
+    }
+}
+
+
+
+
