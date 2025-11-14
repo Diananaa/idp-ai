@@ -1,6 +1,9 @@
 import 'reflect-metadata'
 import { DataSource } from 'typeorm'
 import { User } from './entities/User'
+import { DocumentType } from './entities/DocumentType'
+import { Model } from './entities/Model'
+import { File } from './entities/File'
 
 // Handle password - always use string (empty string if not set, for PostgreSQL without password)
 // PostgreSQL driver requires password to be a string, not undefined
@@ -15,5 +18,5 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'testIDP',
   synchronize: true,
   logging: process.env.NODE_ENV === 'development',
-  entities: [User],
+  entities: [User, DocumentType, Model, File],
 })

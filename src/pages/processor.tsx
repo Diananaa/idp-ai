@@ -24,6 +24,7 @@ export default function ProcessorPage() {
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('e.target.files', e)
     if (e.target.files) {
       const newFiles = Array.from(e.target.files).map((file) => ({
         file,
@@ -41,7 +42,7 @@ export default function ProcessorPage() {
     event.preventDefault()
     setIsDragging(true)
   }
-
+console.log('files', files)
   const handleDragLeave = () => setIsDragging(false)
 
   const handleProcess = () => {
