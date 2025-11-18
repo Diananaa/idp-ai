@@ -1,14 +1,21 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { X } from "lucide-react"
 import dynamic from "next/dynamic";
+import { Model } from "@/lib/entities/Model";
 
 const PdfViewer = dynamic(() => import("../components/PdfViewer"), { ssr: false });
 
 interface UploadedFile {
   file: File;
   preview: string;
+}
+
+interface DocumentType {
+  id: number;
+  name: string;
+  createdAt: Date;
 }
 
 
@@ -22,6 +29,10 @@ export default function ProcessorPage() {
   const [isDragging, setIsDragging] = useState(false)
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+  const [models, setModels] = useState<Model[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log('e.target.files', e)
@@ -44,6 +55,46 @@ export default function ProcessorPage() {
   }
 console.log('files', files)
   const handleDragLeave = () => setIsDragging(false)
+
+  // Fetch document types from API
+  useEffect(() => {
+    fetchDocumentTypes();
+    fetchModels();
+  }, []);
+
+const fetchModels = async () => {
+  setIsLoadingModels(true);
+ try {
+  const response = await fetch("/api/model");
+  if (response.ok) {
+    const data = await response.json();
+    setModels(data);
+  } else {
+    console.error("Failed to fetch models");
+  }
+ } catch (error) {
+  console.error("Error fetching models:", error);
+ } finally {
+  setIsLoadingModels(false);
+ }
+}
+
+  const fetchDocumentTypes = async () => {
+    setIsLoadingTypes(true);
+    try {
+      const response = await fetch("/api/document-types");
+      if (response.ok) {
+        const data = await response.json();
+        setDocumentTypes(data);
+      } else {
+        console.error("Failed to fetch document types");
+      }
+    } catch (error) {
+      console.error("Error fetching document types:", error);
+    } finally {
+      setIsLoadingTypes(false);
+    }
+  };
 
   const handleProcess = () => {
     if (!files || !documentType || !ocrModel) return
@@ -158,13 +209,16 @@ console.log('files', files)
             value={documentType}
             onChange={(e) => setDocumentType(e.target.value)}
             className="select w-full bg-slate-800"
+            disabled={isLoadingTypes}
           >
             <option value="" disabled>
-              Select type
+              {isLoadingTypes ? "Loading..." : "Select type"}
             </option>
-            <option value="KTP">KTP</option>
-            <option value="Kartu Keluarga">Kartu Keluarga</option>
-            <option value="Invoice">Invoice</option>
+            {documentTypes.map((type) => (
+              <option key={type.id} value={type.name}>
+                {type.name}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -176,11 +230,13 @@ console.log('files', files)
             className="select w-full bg-slate-800"
           >
             <option value="" disabled>
-              Select model
+              {isLoadingModels ? "Loading..." : "Select model"}
             </option>
-            <option value="OpenAI">Open AI</option>
-            <option value="Tesseract">Tesseract</option>
-            <option value="Custom">Custom Model</option>
+            {models.map((model) => (
+              <option key={model.id} value={model.name}>
+                {model.name}
+              </option>
+            ))}
           </select>
         </div>
       </div>
