@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react"
 import { X } from "lucide-react"
 import dynamic from "next/dynamic";
-import { Model } from "@/lib/entities/Model";
 
 const PdfViewer = dynamic(() => import("../components/PdfViewer"), { ssr: false });
 
@@ -12,30 +11,44 @@ interface UploadedFile {
   preview: string;
 }
 
-interface DocumentType {
+interface DocumentTypeOption {
   id: number;
   name: string;
-  createdAt: Date;
+}
+
+interface ModelOption {
+  id: number;
+  name: string;
+}
+
+interface ProcessingJobRecord {
+  id: number;
+  fileName: string;
+  fileSize: number;
+  fileType?: string | null;
+  status: string;
+  resultJson?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  documentType: DocumentTypeOption;
+  model: ModelOption;
 }
 
 
 export default function ProcessorPage() {
-  // const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [documentType, setDocumentType] = useState<string>("")
-  const [ocrModel, setOcrModel] = useState<string>("")
+  const [documentTypeId, setDocumentTypeId] = useState<string>("")
+  const [ocrModelId, setOcrModelId] = useState<string>("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<ProcessingJobRecord[] | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
-  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+  const [documentTypes, setDocumentTypes] = useState<DocumentTypeOption[]>([]);
   const [isLoadingTypes, setIsLoadingTypes] = useState(false);
-  const [models, setModels] = useState<Model[]>([]);
+  const [models, setModels] = useState<ModelOption[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('e.target.files', e)
     if (e.target.files) {
       const newFiles = Array.from(e.target.files).map((file) => ({
         file,
@@ -53,7 +66,6 @@ export default function ProcessorPage() {
     event.preventDefault()
     setIsDragging(true)
   }
-console.log('files', files)
   const handleDragLeave = () => setIsDragging(false)
 
   // Fetch document types from API
@@ -67,7 +79,7 @@ const fetchModels = async () => {
  try {
   const response = await fetch("/api/model");
   if (response.ok) {
-    const data = await response.json();
+    const data: ModelOption[] = await response.json();
     setModels(data);
   } else {
     console.error("Failed to fetch models");
@@ -84,7 +96,7 @@ const fetchModels = async () => {
     try {
       const response = await fetch("/api/document-types");
       if (response.ok) {
-        const data = await response.json();
+        const data: DocumentTypeOption[] = await response.json();
         setDocumentTypes(data);
       } else {
         console.error("Failed to fetch document types");
@@ -96,44 +108,57 @@ const fetchModels = async () => {
     }
   };
 
-  const handleProcess = () => {
-    if (!files || !documentType || !ocrModel) return
+  const handleProcess = async () => {
+    if (!files.length || !documentTypeId || !ocrModelId) return
+
     setIsProcessing(true)
-    setProgress(0)
+    setProgress(10)
     setResult(null)
 
-    // Simulate step-by-step progress
-    let current = 0
-    const interval = setInterval(() => {
-      current += 20
-      setProgress(current)
-      if (current >= 100) {
-        clearInterval(interval)
-        setIsProcessing(false)
-        // Dummy result
-        setResult({
-          name: "Budi Santoso",
-          nik: "1234567890123456",
-          dob: "1986-07-15",
-          address: "Jl. Merdeka No. 10, Jakarta",
-          docType: documentType,
-          model: ocrModel,
-          // file: selectedFile.name,
-        })
+    const payload = {
+      documentTypeId: Number(documentTypeId),
+      modelId: Number(ocrModelId),
+      files: files.map((uploadedFile) => ({
+        name: uploadedFile.file.name,
+        size: uploadedFile.file.size,
+        type: uploadedFile.file.type,
+      })),
+    }
+
+    try {
+      const response = await fetch("/api/processing-jobs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+      console.log(response);
+      setProgress(70)
+
+      if (!response.ok) {
+        throw new Error("Failed to create processing jobs")
       }
-    }, 600)
+
+      const data: ProcessingJobRecord[] = await response.json()
+      console.log("API Response Data:", data)
+      setResult(data)
+      setProgress(100)
+    } catch (error) {
+      console.error("Error processing files:", error)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleReset = () => {
-    setSelectedFile(null)
-    setDocumentType("")
-    setOcrModel("")
+    setDocumentTypeId("")
+    setOcrModelId("")
     setResult(null)
     setProgress(0)
     setIsProcessing(false)
     setFiles([])
   }
-  console.log('selectedFile', selectedFile)
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -168,10 +193,15 @@ const fetchModels = async () => {
             <div className="flex flex-col">
               {
                 files.map((f, idx) => (
-                  <div className="mt-3 p-2 flex w-full justify-between bg-slate-700 hover:bg-slate-500 rounded">
+                  <div
+                    key={`${f.file.name}-${idx}`}
+                    className="mt-3 p-2 flex w-full justify-between bg-slate-700 hover:bg-slate-500 rounded"
+                  >
                     <div className="flex gap-2 items-center">
                       <p className="text-sm">{f?.file.name}</p>
-                      <p className="text-xs text-slate-400">{f?.file.size}Kb</p>
+                      <p className="text-xs text-slate-400">
+                        {(f?.file.size / 1024).toFixed(1)} KB
+                      </p>
                     </div>
                     <button
                       className=" btn-error text-white hover:bg-red-700"
@@ -185,20 +215,6 @@ const fetchModels = async () => {
             </div>
           )
         }
-        {/* {selectedFile && (
-          <div className="mt-3 p-2 flex w-full justify-between bg-slate-700 rounded">
-            <div className="flex gap-2 items-center">
-              <p className="text-sm">{selectedFile?.name}</p>
-              <p className="text-xs text-slate-400">{selectedFile?.size}Kb</p>
-            </div>
-            <button
-              className=" btn-error text-white"
-            onClick={() => handleRemoveFile(idx)}
-            >
-              <X />
-            </button>
-          </div>
-        )} */}
       </div>
 
       {/* Form Pilihan */}
@@ -206,8 +222,8 @@ const fetchModels = async () => {
         <div>
           <p className="font-bold mb-2">Document type</p>
           <select
-            value={documentType}
-            onChange={(e) => setDocumentType(e.target.value)}
+            value={documentTypeId}
+            onChange={(e) => setDocumentTypeId(e.target.value)}
             className="select w-full bg-slate-800"
             disabled={isLoadingTypes}
           >
@@ -215,7 +231,7 @@ const fetchModels = async () => {
               {isLoadingTypes ? "Loading..." : "Select type"}
             </option>
             {documentTypes.map((type) => (
-              <option key={type.id} value={type.name}>
+              <option key={type.id} value={type.id.toString()}>
                 {type.name}
               </option>
             ))}
@@ -225,15 +241,16 @@ const fetchModels = async () => {
         <div>
           <p className="font-bold mb-2">Model</p>
           <select
-            value={ocrModel}
-            onChange={(e) => setOcrModel(e.target.value)}
+            value={ocrModelId}
+            onChange={(e) => setOcrModelId(e.target.value)}
             className="select w-full bg-slate-800"
+            disabled={isLoadingModels}
           >
             <option value="" disabled>
               {isLoadingModels ? "Loading..." : "Select model"}
             </option>
             {models.map((model) => (
-              <option key={model.id} value={model.name}>
+              <option key={model.id} value={model.id.toString()}>
                 {model.name}
               </option>
             ))}
@@ -246,7 +263,7 @@ const fetchModels = async () => {
         <button
           onClick={handleProcess}
           className="btn btn-primary"
-          disabled={!files || !documentType || !ocrModel || isProcessing}
+          disabled={!files.length || !documentTypeId || !ocrModelId || isProcessing}
         >
           {isProcessing ? "Processing..." : "Proses"}
         </button>

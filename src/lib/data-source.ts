@@ -4,6 +4,7 @@ import { User } from './entities/User'
 import { DocumentType } from './entities/DocumentType'
 import { Model } from './entities/Model'
 import { File } from './entities/File'
+import { ProcessingJob } from './entities/ProcessingJob'
 
 // Handle password - always use string (empty string if not set, for PostgreSQL without password)
 // PostgreSQL driver requires password to be a string, not undefined
@@ -18,5 +19,5 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'testIDP',
   synchronize: true,
   logging: process.env.NODE_ENV === 'development',
-  entities: [User, DocumentType, Model, File],
+  entities: [User, DocumentType, Model, File, ProcessingJob],
 })
