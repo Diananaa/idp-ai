@@ -4,6 +4,7 @@ import { AppDataSource } from '@/lib/data-source'
 import { ProcessingJob } from '@/lib/entities/ProcessingJob'
 import { DocumentType } from '@/lib/entities/DocumentType'
 import { Model } from '@/lib/entities/Model'
+import { File as ProcessingFile } from '@/lib/entities/File'
 
 type CreateProcessingJobPayload = {
   documentTypeId?: number
@@ -24,11 +25,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const processingJobRepo = AppDataSource.getRepository(ProcessingJob)
+  const fileRepo = AppDataSource.getRepository(ProcessingFile)
 
   if (req.method === 'GET') {
     try {
       const jobs = await processingJobRepo.find({
-        relations: ['documentType', 'model'],
+        relations: ['documentType', 'model', 'files'],
         order: { createdAt: 'DESC' },
       })
       return res.status(200).json(jobs)
@@ -68,21 +70,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(404).json({ error: 'Model not found' })
       }
 
-      const newJobs = payload.files.map((file) =>
-        processingJobRepo.create({
-          documentTypeId: Number(payload.documentTypeId),
-          modelId: Number(payload.modelId),
-          documentType,
-          model,
+      const newJob = processingJobRepo.create({
+        documentTypeId: Number(payload.documentTypeId),
+        modelId: Number(payload.modelId),
+        documentType,
+        model,
+        status: 'UPLOADED',
+      })
+
+      const savedJob = await processingJobRepo.save(newJob)
+
+      const newFiles = payload.files.map((file) =>
+        fileRepo.create({
+          processingJobId: savedJob.id,
+          processingJob: savedJob,
           fileName: file.name,
           fileSize: file.size,
           fileType: file.type ?? null,
-          status: 'UPLOADED',
+          isSuccess: false,
+          processTime: 0,
         })
       )
+      await fileRepo.save(newFiles)
 
-      const savedJobs = await processingJobRepo.save(newJobs)
-      return res.status(200).json(savedJobs)
+      const jobWithRelations = await processingJobRepo.findOne({
+        where: { id: savedJob.id },
+        relations: ['documentType', 'model', 'files'],
+      })
+
+      if (!jobWithRelations) {
+        throw new Error('Failed to load processing job after creation')
+      }
+
+      return res.status(200).json(jobWithRelations)
     } catch (error) {
       console.error('Error creating processing jobs:', error)
       return res.status(500).json({ error: 'Failed to create processing jobs' })

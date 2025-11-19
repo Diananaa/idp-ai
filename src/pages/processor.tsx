@@ -21,17 +21,22 @@ interface ModelOption {
   name: string;
 }
 
-interface ProcessingJobRecord {
+interface ProcessingJobFile {
   id: number;
   fileName: string;
   fileSize: number;
   fileType?: string | null;
+}
+
+interface ProcessingJobRecord {
+  id: number;
   status: string;
   resultJson?: string | null;
   createdAt: string;
   updatedAt: string;
   documentType: DocumentTypeOption;
   model: ModelOption;
+  files: ProcessingJobFile[];
 }
 
 
@@ -40,7 +45,7 @@ export default function ProcessorPage() {
   const [ocrModelId, setOcrModelId] = useState<string>("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [result, setResult] = useState<ProcessingJobRecord[] | null>(null)
+  const [result, setResult] = useState<ProcessingJobRecord | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeOption[]>([]);
@@ -140,9 +145,12 @@ const fetchModels = async () => {
         throw new Error("Failed to create processing jobs")
       }
 
-      const data: ProcessingJobRecord[] = await response.json()
+      const data: ProcessingJobRecord = await response.json()
       console.log("API Response Data:", data)
-      setResult(data)
+      setResult({
+        ...data,
+        files: data.files ?? [],
+      })
       setProgress(100)
     } catch (error) {
       console.error("Error processing files:", error)

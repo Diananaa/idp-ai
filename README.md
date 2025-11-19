@@ -2,6 +2,39 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### 1. Setup Environment Variables
+
+Create a `.env` file in the root directory:
+
+```bash
+# Windows
+copy .env.example .env
+
+# Linux/Mac
+cp .env.example .env
+```
+
+Then edit `.env` with your configuration. See [Environment Setup Guide](docs/ENV_SETUP.md) for details.
+
+**Required variables:**
+- `NODE_ENV` - development or production
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS`, `DB_NAME` - Database credentials
+- `JWT_SECRET` - Secret key for JWT tokens
+
+### 2. Start Database (Docker)
+
+```bash
+docker-compose up -d
+```
+
+### 3. Initialize Database
+
+```bash
+npm run db:init
+```
+
+### 4. Run Development Server
+
 First, run the development server:
 
 ```bash

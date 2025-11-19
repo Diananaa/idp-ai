@@ -1,7 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne } from 'typeorm';
-import { DocumentType } from './DocumentType';
-import { Model } from './Model';
-import { User } from './User';
+import 'reflect-metadata'
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm'
+import { ProcessingJob } from './ProcessingJob'
 
 @Entity()
 export class File {
@@ -11,14 +10,8 @@ export class File {
     @Column({ type: 'varchar', length: 255 })
     fileName!: string
 
-    @Column({ type: 'varchar', length: 255 })
-    filePath!: string
-
-    @ManyToOne(() => DocumentType, (documentType) => documentType.id)
-    documentTypeID!: number
-
-    @ManyToOne(() => Model, (model) => model.id)
-    modelID!: number 
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    filePath?: string | null
 
     @Column({ type: 'boolean' })
     isSuccess!: boolean
@@ -27,11 +20,23 @@ export class File {
     processTime!: number
 
     @CreateDateColumn({ type: 'timestamp' })
-    createAt!: Date
+    createdAt!: Date
 
-    @ManyToOne(() => User, (user) => user.id)
-    userID!: number
+    @Column({ type: 'text', nullable: true })
+    OCRResult?: string | null
 
-    @Column({ type: 'text' })
-    OCRResult!: string
+    @Column({ type: 'integer', nullable: true })
+    processingJobId?: number
+
+    @ManyToOne(() => ProcessingJob, (processingJob) => processingJob.files, {
+        nullable: true,
+    })
+    @JoinColumn({ name: 'processingJobId' })
+    processingJob?: ProcessingJob
+
+    @Column({ type: 'integer', nullable: true })
+    fileSize?: number
+
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    fileType?: string | null
 }

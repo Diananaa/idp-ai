@@ -1,38 +1,13 @@
 import 'reflect-metadata'
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-  OneToOne,
-} from 'typeorm'
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn, OneToMany } from 'typeorm'
 import { DocumentType } from './DocumentType'
 import { Model } from './Model'
+import { File } from './File'
 
 @Entity()
 export class ProcessingJob {
   @PrimaryGeneratedColumn()
   id!: number
-
-  @OneToOne(() => Model)
-  @JoinColumn()
-  modelOneToOne!: Model
-
-  @OneToOne(() => DocumentType)
-  @JoinColumn()
-  documentTypeOneToOne!: DocumentType
-  
-  @Column({ type: 'varchar', length: 255 })
-  fileName!: string
-
-  @Column({ type: 'integer' })
-  fileSize!: number
-
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  fileType?: string | null
 
   @Column({ type: 'varchar', length: 50, default: 'UPLOADED' })
   status!: string
@@ -43,7 +18,7 @@ export class ProcessingJob {
   @Column({ type: 'integer' })
   documentTypeId!: number
 
-  @ManyToOne(() => DocumentType, (documentType) => documentType.processingJobs, {
+  @ManyToOne(() => DocumentType, (documentType) => documentType.id, {
     nullable: false,
   })
   @JoinColumn({ name: 'documentTypeId' })
@@ -52,7 +27,7 @@ export class ProcessingJob {
   @Column({ type: 'integer' })
   modelId!: number
 
-  @ManyToOne(() => Model, (model) => model.processingJobs, {
+  @ManyToOne(() => Model, (model) => model.id, {
     nullable: false,
   })
   @JoinColumn({ name: 'modelId' })
@@ -63,5 +38,10 @@ export class ProcessingJob {
 
   @UpdateDateColumn({ type: 'timestamp' })
   updatedAt!: Date
+
+  @OneToMany(() => File, (file) => file.processingJob, {
+    cascade: true,
+  })
+  files!: File[]
 }
 
