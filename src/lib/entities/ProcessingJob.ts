@@ -39,7 +39,7 @@ export class ProcessingJob {
   @UpdateDateColumn({ type: 'timestamp' })
   updatedAt!: Date
 
-  @OneToMany(() => File, (file) => file.id, {
+  @OneToMany(() => File, (file) => file.processingJob, {
     cascade: true,
   })
   files!: File[]
