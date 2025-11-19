@@ -14,7 +14,7 @@ export class File {
     filePath?: string | null
 
     @Column({ type: 'boolean' })
-    isSuccess!: boolean
+    status!: boolean
 
     @Column({ type: 'integer' })
     processTime!: number

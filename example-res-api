@@ -11,15 +11,24 @@ tabel file:
     id: 'number',
     fileName: 'string',
     filePath: 'string',
-documentTypeID: 'number', // foreign key to documentType table
-    modelID: 'number', // foreign key to model table
     isSuccess: 'boolean', // true if the file is processed successfully, false if the file is not processed successfully
     processTime: 'number',
     createAt: 'date',
-    userID: 'number', // foreign key to user table
-    OCRResult: 'string', // result of the OCR process
+    resultJson: 'string', // result of the OCR process
+
 }
 
+tabel processingJob:
+{
+    id: 'number',
+    status: 'string',
+    createdAt: 'date',
+    updatedAt: 'date',
+    documentTypeID: 'number', // foreign key to documentType table
+    modelID: 'number', // foreign key to model table
+    userID: 'number', // foreign key to user table
+    filesID: 'array', // foreign key to file table
+}
 tabel model:
 {
     id: 'number',   
