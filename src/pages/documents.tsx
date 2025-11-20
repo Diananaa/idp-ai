@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Trash, Eye } from "lucide-react"
+import { useRouter } from "next/router"
 
 interface JobFileSummary {
   id: number
@@ -35,17 +36,20 @@ interface ApiResponse {
 }
 
 export default function DocumentsPage() {
+  const router = useRouter()
   const [jobs, setJobs] = useState<ProcessingJobListItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
+  const [isDeleting, setIsDeleting] = useState<number | null>(null)
 
   const fetchJobs = async (page: number = 1) => {
     setIsLoading(true)
     setError(null)
     try {
       const response = await fetch(`/api/processing-jobs-list?page=${page}&limit=10`)
+      console.log(response)
       if (!response.ok) {
         throw new Error("Failed to fetch processing jobs")
       }
@@ -72,6 +76,34 @@ export default function DocumentsPage() {
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
   }
+
+  const handleViewDetail = (jobId: number) => {
+    router.push(`/documents/${jobId}`)
+  }
+
+  const handleDelete = async (jobId: number) => {
+    if (!confirm("Are you sure you want to delete this processing job? This action cannot be undone.")) {
+      return
+    }
+
+    setIsDeleting(jobId)
+    try {
+      const response = await fetch(`/api/processing-jobs/${jobId}`, {
+        method: "DELETE",
+      })
+      if (!response.ok) {
+        throw new Error("Failed to delete processing job")
+      }
+      // Refresh the list
+      await fetchJobs(currentPage)
+    } catch (err) {
+      console.error("Error deleting job:", err)
+      alert(err instanceof Error ? err.message : "Failed to delete processing job")
+    } finally {
+      setIsDeleting(null)
+    }
+  }
+
 
   const tableBody = useMemo(() => {
     if (isLoading) {
@@ -115,11 +147,24 @@ export default function DocumentsPage() {
           <td>{job.status}</td>
           <td>{new Date(job.createdAt).toLocaleString()}</td>
           <td className="flex gap-3">
-            <button className="btn btn-sm bg-slate-600 hover:bg-violet-950" aria-label="Preview result">
+            <button
+              className="btn btn-sm bg-slate-600 hover:bg-violet-950"
+              aria-label="Preview result"
+              onClick={() => handleViewDetail(job.id)}
+            >
               <Eye />
             </button>
-            <button className="btn btn-sm bg-slate-600 hover:bg-red-950" aria-label="Delete job">
-              <Trash />
+            <button
+              className="btn btn-sm bg-slate-600 hover:bg-red-950"
+              aria-label="Delete job"
+              onClick={() => handleDelete(job.id)}
+              disabled={isDeleting === job.id}
+            >
+              {isDeleting === job.id ? (
+                <span className="loading loading-spinner loading-xs"></span>
+              ) : (
+                <Trash />
+              )}
             </button>
           </td>
         </tr>
