@@ -87,7 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           fileName: file.name,
           fileSize: file.size,
           fileType: file.type ?? null,
-          isSuccess: false,
+          status: 'UPLOADED',
           processTime: 0,
         })
       )

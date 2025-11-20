@@ -13,10 +13,10 @@ export class File {
     @Column({ type: 'varchar', length: 255, nullable: true })
     filePath?: string | null
 
-    @Column({ type: 'boolean' })
-    status!: boolean
+    @Column({ type: 'varchar', length: 50, default: 'UPLOADED' })
+    status!: string
 
-    @Column({ type: 'integer' })
+    @Column({ type: 'integer', default: 0 })
     processTime!: number
 
     @CreateDateColumn({ type: 'timestamp' })
