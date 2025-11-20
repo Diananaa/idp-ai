@@ -116,6 +116,15 @@ export default function ProcessingJobDetailPage() {
     }
   }
 
+  const formatOcrDisplay = (ocrString?: string | null) => {
+    if (!ocrString) return ''
+    const parsed = parseJsonSafely(ocrString)
+    if (parsed) {
+      return JSON.stringify(parsed, null, 2)
+    }
+    return ocrString
+  }
+
   const getFileIcon = (fileType?: string | null) => {
     if (!fileType) return <File className="w-5 h-5" />
     const type = fileType.toLowerCase()
@@ -304,6 +313,22 @@ export default function ProcessingJobDetailPage() {
                       }`}>
                         {file.status}
                       </span>
+                      {hasOCRResult && (
+                        <button
+                          type="button"
+                          onClick={() => toggleFileExpansion(file.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-3 py-1 text-xs font-medium text-slate-200 transition-colors hover:border-violet-400 hover:text-white"
+                          aria-expanded={isExpanded}
+                          aria-controls={`ocr-panel-${file.id}`}
+                        >
+                          {isExpanded ? 'Sembunyikan OCR' : 'Lihat OCR'}
+                          {isExpanded ? (
+                            <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -328,28 +353,15 @@ export default function ProcessingJobDetailPage() {
                   )}
 
                   {/* OCR Result Section */}
-                  {hasOCRResult && (
-                    <div className="mt-2">
-                      <button
-                        onClick={() => toggleFileExpansion(file.id)}
-                        className="w-full flex items-center justify-between p-3 bg-slate-600/50 hover:bg-slate-600 rounded-lg transition-colors group"
-                      >
-                        <span className="text-sm font-medium text-slate-300 group-hover:text-white">
-                          OCR Result
-                        </span>
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-slate-400" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-slate-400" />
-                        )}
-                      </button>
-                      {isExpanded && (
-                        <div className="mt-3 p-4 bg-slate-900/50 rounded-lg border border-slate-700 animate-in fade-in slide-in-from-top-2 duration-200">
-                          <pre className="text-xs text-slate-300 overflow-x-auto max-h-80 font-mono">
-                            {JSON.stringify(parseJsonSafely(file.OCRResult), null, 2)}
-                          </pre>
-                        </div>
-                      )}
+                  {hasOCRResult && isExpanded && (
+                    <div
+                      id={`ocr-panel-${file.id}`}
+                      className="mt-3 p-4 bg-slate-900/50 rounded-lg border border-slate-700 animate-in fade-in slide-in-from-top-2 duration-200"
+                    >
+                      <p className="text-sm font-medium text-slate-200 mb-3">OCR Result</p>
+                      <pre className="text-xs text-slate-300 overflow-x-auto max-h-80 font-mono whitespace-pre-wrap">
+                        {formatOcrDisplay(file.OCRResult)}
+                      </pre>
                     </div>
                   )}
                 </div>

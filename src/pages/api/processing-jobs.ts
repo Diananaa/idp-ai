@@ -1,5 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import formidable, { type File as FormidableFile } from 'formidable'
+import formidable, {
+  type File as FormidableFile,
+  type Fields as FormidableFields,
+  type Files as FormidableFiles,
+  type Part as FormidablePart,
+} from 'formidable'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
@@ -24,6 +29,53 @@ type ParsedUploadPayload = {
 
 const uploadDir = path.join(process.cwd(), 'public', 'uploads')
 
+type DummyOcrParams = {
+  documentTypeName: string
+  modelName: string
+  fileName: string
+}
+
+function generateDummyOcrJson({ documentTypeName, modelName, fileName }: DummyOcrParams) {
+  const randomConfidence = () => Number((0.82 + Math.random() * 0.15).toFixed(2))
+  const today = new Date()
+  const issuedAt = new Date(today.getTime() - Math.floor(Math.random() * 14) * 24 * 60 * 60 * 1000)
+
+  return {
+    fileName,
+    documentType: documentTypeName,
+    model: modelName,
+    extractedAt: today.toISOString(),
+    confidence: randomConfidence(),
+    fields: {
+      documentNumber: {
+        label: 'Nomor Dokumen',
+        value: `DOC-${Math.floor(100000 + Math.random() * 900000)}`,
+        confidence: randomConfidence(),
+      },
+      ownerName: {
+        label: 'Nama Pemilik',
+        value: 'John Doe',
+        confidence: randomConfidence(),
+      },
+      issuedDate: {
+        label: 'Tanggal Terbit',
+        value: issuedAt.toISOString().split('T')[0],
+        confidence: randomConfidence(),
+      },
+      transactionValue: {
+        label: 'Nilai Transaksi',
+        value: Number(50000000 + Math.random() * 25000000),
+        currency: 'IDR',
+        confidence: randomConfidence(),
+      },
+    },
+    notes: [
+      'Ini hanya data dummy untuk pengujian form OCR.',
+      'Silakan ganti dengan hasil OCR asli saat backend siap.',
+    ],
+  }
+}
+
 async function ensureUploadDir() {
   await fs.mkdir(uploadDir, { recursive: true })
 }
@@ -43,7 +95,7 @@ async function parseMultipartRequest(req: NextApiRequest): Promise<ParsedUploadP
     uploadDir,
     keepExtensions: true,
     maxFileSize: 20 * 1024 * 1024, // 20MB per file
-    filename: (_name, _ext, part) => {
+    filename: (_name: string, _ext: string, part: FormidablePart) => {
       const unique = randomUUID()
       const sanitized = part.originalFilename
         ? part.originalFilename.replace(/[^\w.\-]/g, '_')
@@ -55,8 +107,8 @@ async function parseMultipartRequest(req: NextApiRequest): Promise<ParsedUploadP
     },
   })
 
-  const { fields, files } = await new Promise<{ fields: formidable.Fields; files: formidable.Files }>((resolve, reject) => {
-    form.parse(req, (err, parsedFields, parsedFiles) => {
+  const { fields, files } = await new Promise<{ fields: FormidableFields; files: FormidableFiles }>((resolve, reject) => {
+    form.parse(req, (err: Error | null, parsedFields: FormidableFields, parsedFiles: FormidableFiles) => {
       if (err) {
         reject(err)
         return
@@ -145,24 +197,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         modelId: Number(payload.modelId),
         documentType,
         model,
-        status: 'UPLOADED',
+        status: 'COMPLETED',
       })
 
       const savedJob = await processingJobRepo.save(newJob)
 
-      const newFiles = payload.files.map((file) =>
-        fileRepo.create({
-          processingJobId: savedJob.id,
-          processingJob: savedJob,
-          fileName: file.originalFilename ?? file.newFilename,
-          fileSize: file.size ?? null,
-          fileType: file.mimetype ?? null,
-          filePath: path.join('uploads', path.basename(file.filepath ?? file.newFilename)),
-          status: 'UPLOADED',
-          processTime: 0,
+      const newFiles = payload.files.map((file) => {
+        const originalFileName = file.originalFilename ?? file.newFilename ?? 'file'
+        const storedFilePath = file.filepath ?? file.newFilename
+        const relativeFilePath = storedFilePath
+          ? path.join('uploads', path.basename(storedFilePath))
+          : path.join('uploads', `${randomUUID()}_${originalFileName}`)
+
+        const createdFile = new ProcessingFile()
+        createdFile.processingJob = savedJob
+        createdFile.fileName = originalFileName
+        createdFile.fileSize = file.size ?? undefined
+        createdFile.fileType = file.mimetype ?? null
+        createdFile.filePath = relativeFilePath
+        createdFile.status = 'COMPLETED'
+        createdFile.processTime = Math.floor(1500 + Math.random() * 2500)
+        const ocrData = generateDummyOcrJson({
+          documentTypeName: documentType.name,
+          modelName: model.name,
+          fileName: originalFileName,
         })
-      )
-      await fileRepo.save(newFiles)
+        createdFile.OCRResult = JSON.stringify(ocrData, null, 2)
+
+        return { entity: createdFile, ocrData }
+      })
+      const savedFiles = await fileRepo.save(newFiles.map(({ entity }) => entity))
+
+      const aggregatedResult = {
+        documentType: documentType.name,
+        model: model.name,
+        totalFiles: savedFiles.length,
+        processedAt: new Date().toISOString(),
+        files: newFiles.map(({ ocrData }) => ocrData),
+      }
+
+      savedJob.resultJson = JSON.stringify(aggregatedResult)
+      await processingJobRepo.save(savedJob)
 
       const jobWithRelations = await processingJobRepo.findOne({
         where: { id: savedJob.id },
