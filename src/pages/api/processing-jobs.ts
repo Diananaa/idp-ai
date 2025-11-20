@@ -1,4 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import formidable, { type File as FormidableFile } from 'formidable'
+import { promises as fs } from 'fs'
+import path from 'path'
+import { randomUUID } from 'crypto'
 import { initDB } from '@/lib/db'
 import { AppDataSource } from '@/lib/data-source'
 import { ProcessingJob } from '@/lib/entities/ProcessingJob'
@@ -6,14 +10,83 @@ import { DocumentType } from '@/lib/entities/DocumentType'
 import { Model } from '@/lib/entities/Model'
 import { File as ProcessingFile } from '@/lib/entities/File'
 
-type CreateProcessingJobPayload = {
-  documentTypeId?: number
-  modelId?: number
-  files?: Array<{
-    name: string
-    size: number
-    type?: string
-  }>
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+}
+
+type ParsedUploadPayload = {
+  documentTypeId: number
+  modelId: number
+  files: FormidableFile[]
+}
+
+const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+
+async function ensureUploadDir() {
+  await fs.mkdir(uploadDir, { recursive: true })
+}
+
+function normalizeFieldValue(value?: string | string[]): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0]
+  }
+  return value
+}
+
+async function parseMultipartRequest(req: NextApiRequest): Promise<ParsedUploadPayload> {
+  await ensureUploadDir()
+
+  const form = formidable({
+    multiples: true,
+    uploadDir,
+    keepExtensions: true,
+    maxFileSize: 20 * 1024 * 1024, // 20MB per file
+    filename: (_name, _ext, part) => {
+      const unique = randomUUID()
+      const sanitized = part.originalFilename
+        ? part.originalFilename.replace(/[^\w.\-]/g, '_')
+        : 'file'
+      const lastDot = sanitized.lastIndexOf('.')
+      const baseName = lastDot === -1 ? sanitized : sanitized.slice(0, lastDot)
+      const extension = lastDot === -1 ? '' : sanitized.slice(lastDot)
+      return `${baseName}_${unique}${extension}`
+    },
+  })
+
+  const { fields, files } = await new Promise<{ fields: formidable.Fields; files: formidable.Files }>((resolve, reject) => {
+    form.parse(req, (err, parsedFields, parsedFiles) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      resolve({ fields: parsedFields, files: parsedFiles })
+    })
+  })
+
+  const documentTypeIdRaw = normalizeFieldValue(fields.documentTypeId)
+  const modelIdRaw = normalizeFieldValue(fields.modelId)
+
+  if (!documentTypeIdRaw || !modelIdRaw) {
+    throw new Error('documentTypeId and modelId are required')
+  }
+
+  const parsedFiles = files.files
+    ? Array.isArray(files.files)
+      ? files.files.filter(Boolean) as FormidableFile[]
+      : [files.files as FormidableFile]
+    : []
+
+  if (!parsedFiles.length) {
+    throw new Error('At least one file is required')
+  }
+
+  return {
+    documentTypeId: Number(documentTypeIdRaw),
+    modelId: Number(modelIdRaw),
+    files: parsedFiles,
+  }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -41,16 +114,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === 'POST') {
-    const payload = req.body as CreateProcessingJobPayload
-
-    if (
-      !payload?.documentTypeId ||
-      !payload?.modelId ||
-      !Array.isArray(payload.files) ||
-      payload.files.length === 0
-    ) {
+    let payload: ParsedUploadPayload
+    try {
+      payload = await parseMultipartRequest(req)
+    } catch (error) {
+      console.error('Error parsing multipart request:', error)
       return res.status(400).json({
-        error: 'documentTypeId, modelId, and at least one file are required',
+        error: error instanceof Error ? error.message : 'Invalid upload payload',
       })
     }
 
@@ -84,9 +154,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         fileRepo.create({
           processingJobId: savedJob.id,
           processingJob: savedJob,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type ?? null,
+          fileName: file.originalFilename ?? file.newFilename,
+          fileSize: file.size ?? null,
+          fileType: file.mimetype ?? null,
+          filePath: path.join('uploads', path.basename(file.filepath ?? file.newFilename)),
           status: 'UPLOADED',
           processTime: 0,
         })

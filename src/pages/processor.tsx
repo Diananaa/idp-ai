@@ -120,25 +120,18 @@ const fetchModels = async () => {
     setProgress(10)
     setResult(null)
 
-    const payload = {
-      documentTypeId: Number(documentTypeId),
-      modelId: Number(ocrModelId),
-      files: files.map((uploadedFile) => ({
-        name: uploadedFile.file.name,
-        size: uploadedFile.file.size,
-        type: uploadedFile.file.type,
-      })),
-    }
+    const formData = new FormData()
+    formData.append("documentTypeId", documentTypeId)
+    formData.append("modelId", ocrModelId)
+    files.forEach(({ file }) => {
+      formData.append("files", file)
+    })
 
     try {
       const response = await fetch("/api/processing-jobs", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+        body: formData,
       })
-      console.log(response);
       setProgress(70)
 
       if (!response.ok) {
@@ -146,7 +139,6 @@ const fetchModels = async () => {
       }
 
       const data: ProcessingJobRecord = await response.json()
-      console.log("API Response Data:", data)
       setResult({
         ...data,
         files: data.files ?? [],

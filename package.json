@@ -13,6 +13,7 @@
   "dependencies": {
     "@geist-ui/core": "^2.3.8",
     "axios": "^1.13.1",
+    "formidable": "^3.5.4",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.542.0",
     "next": "15.5.2",

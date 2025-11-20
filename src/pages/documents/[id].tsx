@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/router"
 import { ArrowLeft, Trash, FileText, Image, File, Clock, Calendar, HardDrive, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react"
@@ -261,6 +262,9 @@ export default function ProcessingJobDetailPage() {
             {job.files.map((file) => {
               const isExpanded = expandedFiles.has(file.id)
               const hasOCRResult = !!file.OCRResult
+              const normalizedPath = file.filePath
+                ? `/${file.filePath.replace(/^\/+/, "").replace(/\\/g, "/")}`
+                : null
               
               return (
                 <div
@@ -308,6 +312,20 @@ export default function ProcessingJobDetailPage() {
                     <Calendar className="w-3.5 h-3.5" />
                     <span>Created: {formatDate(file.createdAt)}</span>
                   </div>
+
+                  {normalizedPath && (
+                    <div className="mb-4">
+                      <Link
+                        href={normalizedPath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-violet-300 hover:text-white font-medium transition-colors"
+                      >
+                        View file
+                        <FileText className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  )}
 
                   {/* OCR Result Section */}
                   {hasOCRResult && (
