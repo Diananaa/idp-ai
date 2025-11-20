@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/router"
-import { ArrowLeft, Trash, FileText, Image, File, Clock, Calendar, HardDrive, ChevronDown, ChevronUp } from "lucide-react"
+import { ArrowLeft, Trash, FileText, Image, File, Clock, Calendar, HardDrive, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react"
 
 interface ProcessingJobFile {
   id: number
@@ -45,6 +45,7 @@ export default function ProcessingJobDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [expandedFiles, setExpandedFiles] = useState<Set<number>>(new Set())
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return
@@ -71,7 +72,7 @@ export default function ProcessingJobDetailPage() {
   }, [id])
 
   const handleDelete = async () => {
-    if (!job || !confirm("Are you sure you want to delete this processing job? This action cannot be undone.")) {
+    if (!job) {
       return
     }
 
@@ -85,6 +86,7 @@ export default function ProcessingJobDetailPage() {
       }
       // Redirect to documents list
       router.push("/documents")
+      setIsDeleteModalOpen(false)
     } catch (err) {
       console.error("Error deleting job:", err)
       alert(err instanceof Error ? err.message : "Failed to delete processing job")
@@ -181,7 +183,7 @@ export default function ProcessingJobDetailPage() {
         </div>
         <button
           className="btn bg-red-600 hover:bg-red-700 text-white"
-          onClick={handleDelete}
+          onClick={() => setIsDeleteModalOpen(true)}
           disabled={isDeleting}
         >
           {isDeleting ? (
@@ -346,6 +348,67 @@ export default function ProcessingJobDetailPage() {
           <pre className="bg-slate-900 p-4 rounded text-sm text-white overflow-x-auto max-h-96">
             {JSON.stringify(parseJsonSafely(job.resultJson), null, 2)}
           </pre>
+        </div>
+      )}
+      {isDeleteModalOpen && job && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 p-8 shadow-2xl ring-1 ring-white/5">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-400 ring-1 ring-red-500/30">
+                <AlertTriangle size={28} />
+              </div>
+              <div>
+                <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Delete Job</p>
+                <h2 className="mt-1 text-2xl font-semibold text-white">Confirm removal</h2>
+              </div>
+            </div>
+            <p className="mt-6 text-sm text-slate-300">
+              This will permanently delete job{" "}
+              <span className="font-semibold text-white">
+                #{job.id} {job.documentType?.name ? `• ${job.documentType.name}` : ""}
+              </span>{" "}
+              and {job.files.length || "all"} associated file(s). This cannot be undone.
+            </p>
+            {job.files.length > 0 && (
+              <div className="mt-4 rounded-xl border border-white/5 bg-slate-900/70 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Files snapshot</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {job.files.slice(0, 3).map((file) => (
+                    <span key={file.id} className="rounded-full bg-slate-800/70 px-3 py-1 text-xs text-slate-100">
+                      {file.fileName}
+                    </span>
+                  ))}
+                  {job.files.length > 3 && (
+                    <span className="rounded-full bg-slate-800/70 px-3 py-1 text-xs text-slate-100">
+                      +{job.files.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                className="btn flex-1 border-none bg-white text-slate-900 hover:bg-slate-100"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn flex-1 border border-red-500/30 bg-red-500/20 text-red-300 hover:bg-red-500/30"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : (
+                  <>
+                    <Trash className="mr-2 h-4 w-4" /> Delete forever
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

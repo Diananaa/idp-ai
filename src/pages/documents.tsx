@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Trash, Eye } from "lucide-react"
+import { Trash, Eye, AlertTriangle } from "lucide-react"
 import { useRouter } from "next/router"
 
 interface JobFileSummary {
@@ -43,6 +43,7 @@ export default function DocumentsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
   const [isDeleting, setIsDeleting] = useState<number | null>(null)
+  const [pendingDeleteJob, setPendingDeleteJob] = useState<ProcessingJobListItem | null>(null)
 
   const fetchJobs = async (page: number = 1) => {
     setIsLoading(true)
@@ -82,10 +83,6 @@ export default function DocumentsPage() {
   }
 
   const handleDelete = async (jobId: number) => {
-    if (!confirm("Are you sure you want to delete this processing job? This action cannot be undone.")) {
-      return
-    }
-
     setIsDeleting(jobId)
     try {
       const response = await fetch(`/api/processing-jobs/${jobId}`, {
@@ -96,6 +93,7 @@ export default function DocumentsPage() {
       }
       // Refresh the list
       await fetchJobs(currentPage)
+      setPendingDeleteJob(null)
     } catch (err) {
       console.error("Error deleting job:", err)
       alert(err instanceof Error ? err.message : "Failed to delete processing job")
@@ -141,7 +139,30 @@ export default function DocumentsPage() {
       return (
         <tr key={job.id} className="hover:bg-slate-800">
           <th>{rowNumber}</th>
-          <td>{job.files?.[0]?.fileName ?? "-"}</td>
+          <td>
+            {job.files && job.files.length > 0 ? (
+              <div className="max-h-28 overflow-y-auto pr-2 flex flex-col gap-2">
+                {job.files.map((file) => (
+                  <span
+                    key={file.id}
+                    className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-slate-100 shadow-sm"
+                    title={`${file.fileName}${file.fileSize ? ` • ${(file.fileSize / 1024).toFixed(1)} KB` : ""}`}
+                  >
+                    <span className="truncate max-w-[180px]" aria-label="File name">
+                      {file.fileName}
+                    </span>
+                    {file.fileType && (
+                      <span className="rounded bg-slate-700 px-2 py-0.5 text-[10px] uppercase">
+                        {file.fileType}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">No files</span>
+            )}
+          </td>
           <td>{job.documentType ?? "-"}</td>
           <td>{job.model ?? "-"}</td>
           <td>{job.status}</td>
@@ -155,9 +176,9 @@ export default function DocumentsPage() {
               <Eye />
             </button>
             <button
-              className="btn btn-sm bg-slate-600 hover:bg-red-950"
+              className="btn btn-sm bg-slate-600 hover:bg-red-600 hover:text-white transition-colors"
               aria-label="Delete job"
-              onClick={() => handleDelete(job.id)}
+              onClick={() => setPendingDeleteJob(job)}
               disabled={isDeleting === job.id}
             >
               {isDeleting === job.id ? (
@@ -173,13 +194,13 @@ export default function DocumentsPage() {
   }, [error, isLoading, jobs, pagination])
 
   return (
-    <div>
+    <div className="relative">
       <div className="overflow-x-auto">
         <table className="table">
           <thead>
             <tr>
               <th>No.</th>
-              <th>File Name</th>
+              <th>Files</th>
               <th>Type Document</th>
               <th>Model</th>
               <th>Status</th>
@@ -237,6 +258,67 @@ export default function DocumentsPage() {
           )
         })()}
       </div>
+      {pendingDeleteJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 p-8 shadow-2xl ring-1 ring-white/5">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-400 ring-1 ring-red-500/30">
+                <AlertTriangle size={28} />
+              </div>
+              <div>
+                <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Delete Job</p>
+                <h2 className="mt-1 text-2xl font-semibold text-white">Are you absolutely sure?</h2>
+              </div>
+            </div>
+            <p className="mt-6 text-sm text-slate-300">
+              This action will permanently remove{" "}
+              <span className="font-semibold text-white">
+                #{pendingDeleteJob.id} {pendingDeleteJob.documentType ? `• ${pendingDeleteJob.documentType}` : ""}
+              </span>{" "}
+              along with all processed files. This cannot be undone.
+            </p>
+            {pendingDeleteJob.files && pendingDeleteJob.files.length > 0 && (
+              <div className="mt-4 rounded-xl border border-white/5 bg-slate-900/70 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Attached files</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {pendingDeleteJob.files.slice(0, 3).map((file) => (
+                    <span key={file.id} className="rounded-full bg-slate-800/70 px-3 py-1 text-xs text-slate-100">
+                      {file.fileName}
+                    </span>
+                  ))}
+                  {pendingDeleteJob.files.length > 3 && (
+                    <span className="rounded-full bg-slate-800/70 px-3 py-1 text-xs text-slate-100">
+                      +{pendingDeleteJob.files.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                className="btn flex-1 border-none bg-white text-slate-900 hover:bg-slate-100"
+                onClick={() => setPendingDeleteJob(null)}
+                disabled={isDeleting === pendingDeleteJob.id}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn flex-1 border border-red-500/30 bg-red-500/20 text-red-300 hover:bg-red-500/30"
+                onClick={() => handleDelete(pendingDeleteJob.id)}
+                disabled={isDeleting === pendingDeleteJob.id}
+              >
+                {isDeleting === pendingDeleteJob.id ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : (
+                  <>
+                    <Trash className="mr-2 h-4 w-4" /> Delete forever
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
