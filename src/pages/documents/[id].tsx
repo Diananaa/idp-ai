@@ -3,7 +3,22 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/router"
-import { ArrowLeft, Trash, FileText, Image, File, Clock, Calendar, HardDrive, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react"
+import {
+  ArrowLeft,
+  Trash,
+  FileText,
+  Image,
+  File,
+  Clock,
+  Calendar,
+  HardDrive,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  Edit2,
+  Save,
+  X,
+} from "lucide-react"
 
 interface ProcessingJobFile {
   id: number
@@ -38,6 +53,281 @@ interface ProcessingJobDetail {
   files: ProcessingJobFile[]
 }
 
+interface OCRFieldValue {
+  value: string | number
+  currency?: string
+  confidence?: number
+  [key: string]: any
+}
+
+interface OCRFieldEntry {
+  name: string
+  value: OCRFieldValue
+}
+
+interface OCRFormData {
+  meta: {
+    documentType: string
+    model: string
+    processedAt: string
+  }
+  fields: OCRFieldEntry[]
+}
+
+interface FieldFormItem {
+  key: string
+  value: string
+  currency?: string
+  confidence?: string
+}
+
+interface OCREditFormProps {
+  file: ProcessingJobFile
+  job: ProcessingJobDetail
+  onCancel: () => void
+  onSubmit: (data: OCRFormData) => void
+  isSubmitting: boolean
+}
+
+function OCREditForm({ file, job, onCancel, onSubmit, isSubmitting }: OCREditFormProps) {
+  const parseOCRFields = (ocrString?: string | null): FieldFormItem[] => {
+    if (!ocrString) return []
+    try {
+      const parsed = JSON.parse(ocrString)
+      const rawFields = parsed.fields
+
+      if (Array.isArray(rawFields)) {
+        return rawFields.map((field: any) => {
+          const valuePayload = field?.value ?? field
+          const rawValue = valuePayload?.value ?? valuePayload ?? ''
+          return {
+            key: String(field?.name ?? field?.key ?? ''),
+            value: rawValue !== undefined && rawValue !== null ? String(rawValue) : '',
+            currency: valuePayload?.currency ? String(valuePayload.currency) : '',
+            confidence:
+              valuePayload?.confidence !== undefined && valuePayload?.confidence !== null
+                ? String(valuePayload.confidence)
+                : '',
+          }
+        })
+      }
+
+      if (rawFields && typeof rawFields === 'object') {
+        return Object.entries(rawFields).map(([key, value]: [string, any]) => {
+          const valuePayload = value?.value !== undefined ? value : { value }
+          const rawValue = valuePayload?.value ?? ''
+          return {
+            key,
+            value: rawValue !== undefined && rawValue !== null ? String(rawValue) : '',
+            currency: valuePayload?.currency ? String(valuePayload.currency) : '',
+            confidence:
+              valuePayload?.confidence !== undefined && valuePayload?.confidence !== null
+                ? String(valuePayload.confidence)
+                : '',
+          }
+        })
+      }
+    } catch {
+      // ignore parsing errors and fall back to empty array
+    }
+    return []
+  }
+
+  const existingFields = parseOCRFields(file.OCRResult)
+
+  const [fields, setFields] = useState<FieldFormItem[]>(
+    existingFields.length > 0 ? existingFields : [{ key: '', value: '', currency: '', confidence: '' }]
+  )
+
+  const addField = () => {
+    setFields([...fields, { key: '', value: '', currency: '', confidence: '' }])
+  }
+
+  const removeField = (index: number) => {
+    if (fields.length > 1) {
+      setFields(fields.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateField = (index: number, field: Partial<FieldFormItem>) => {
+    const updated = [...fields]
+    updated[index] = { ...updated[index], ...field }
+    setFields(updated)
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const formattedFields = fields
+      .map((field) => ({
+        key: field.key?.trim(),
+        value: field.value,
+        currency: field.currency?.trim(),
+        confidence: field.confidence?.trim(),
+      }))
+      .filter((field) => field.key)
+      .map((field) => {
+        const confidenceNumber =
+          field.confidence && !Number.isNaN(Number(field.confidence))
+            ? Number(field.confidence)
+            : undefined
+
+        return {
+          name: field.key as string,
+          value: {
+            value: field.value,
+            ...(field.currency ? { currency: field.currency } : {}),
+            ...(confidenceNumber !== undefined ? { confidence: confidenceNumber } : {}),
+          },
+        }
+      })
+
+    // Get existing meta from OCR result
+    let meta = {
+      documentType: job.documentType?.name || 'KTP',
+      model: job.model?.name || 'Tesseract',
+      processedAt: new Date().toISOString(),
+    }
+
+    try {
+      const parsed = JSON.parse(file.OCRResult || '{}')
+      if (parsed.meta) {
+        meta = {
+          ...parsed.meta,
+          processedAt: new Date().toISOString(),
+        }
+      }
+    } catch {}
+
+    const formattedData: OCRFormData = {
+      meta,
+      fields: formattedFields,
+    }
+
+    onSubmit(formattedData)
+  }
+
+  return (
+    <div
+      className="p-4 bg-slate-900/50 rounded-lg border border-slate-700 space-y-4 max-h-[600px] overflow-y-auto"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-slate-300">Fields</h4>
+          <button
+            type="button"
+            onClick={addField}
+            className="btn btn-xs bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            + Add Field
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {fields.map((field, index) => (
+            <div
+              key={index}
+              className="p-3 bg-slate-800 rounded-lg border border-slate-700 space-y-2"
+            >
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Field Name</label>
+                  <input
+                    type="text"
+                    value={field.key}
+                    onChange={(e) => updateField(index, { key: e.target.value })}
+                    placeholder="e.g., documentNumber"
+                    className="input input-sm w-full bg-slate-700 text-white border-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Value</label>
+                  <input
+                    type="text"
+                    value={field.value}
+                    onChange={(e) => updateField(index, { value: e.target.value })}
+                    placeholder="Field value"
+                    className="input input-sm w-full bg-slate-700 text-white border-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Currency (optional)</label>
+                  <input
+                    type="text"
+                    value={field.currency}
+                    onChange={(e) => updateField(index, { currency: e.target.value })}
+                    placeholder="IDR"
+                    className="input input-sm w-full bg-slate-700 text-white border-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Confidence (optional)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={field.confidence}
+                    onChange={(e) => updateField(index, { confidence: e.target.value })}
+                    placeholder="0.95"
+                    className="input input-sm w-full bg-slate-700 text-white border-slate-600"
+                  />
+                </div>
+
+                {fields.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeField(index)}
+                    className="btn btn-xs btn-error text-white w-full"
+                  >
+                    <X className="w-3 h-3 mr-1" />
+                    Remove Field
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="btn btn-sm bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            {isSubmitting ? (
+              <>
+                <span className="loading loading-spinner loading-xs"></span>
+                Updating...
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5 mr-1" />
+                Save
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="btn btn-sm bg-slate-600 hover:bg-slate-500 text-white"
+          >
+            <X className="w-3.5 h-3.5 mr-1" />
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 export default function ProcessingJobDetailPage() {
   const router = useRouter()
   const { id } = router.query
@@ -47,6 +337,8 @@ export default function ProcessingJobDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [expandedFiles, setExpandedFiles] = useState<Set<number>>(new Set())
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [editingFiles, setEditingFiles] = useState<Set<number>>(new Set())
+  const [updatingFiles, setUpdatingFiles] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return
@@ -56,10 +348,14 @@ export default function ProcessingJobDetailPage() {
       setError(null)
       try {
         const response = await fetch(`/api/processing-jobs/${id}`)
+        
+      
         if (!response.ok) {
           throw new Error("Failed to fetch job details")
         }
+        console.log('aaa',response)
         const jobDetail: ProcessingJobDetail = await response.json()
+        console.log('bbb',jobDetail)
         setJob(jobDetail)
       } catch (err) {
         console.error("Error fetching job detail:", err)
@@ -140,11 +436,86 @@ export default function ProcessingJobDetailPage() {
       const newSet = new Set(prev)
       if (newSet.has(fileId)) {
         newSet.delete(fileId)
+        // Also close edit mode when closing expansion
+        setEditingFiles(prevEdit => {
+          const newEditSet = new Set(prevEdit)
+          newEditSet.delete(fileId)
+          return newEditSet
+        })
       } else {
         newSet.add(fileId)
       }
       return newSet
     })
+  }
+
+  const toggleEditMode = (fileId: number) => {
+    setEditingFiles(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(fileId)) {
+        newSet.delete(fileId)
+      } else {
+        newSet.add(fileId)
+      }
+      return newSet
+    })
+  }
+
+  const handleUpdateOCR = async (fileId: number, ocrData: OCRFormData) => {
+    setUpdatingFiles(prev => new Set(prev).add(fileId))
+    try {
+      // Convert datetime-local to ISO string if needed
+      const processedAt = ocrData.meta.processedAt.includes('T')
+        ? ocrData.meta.processedAt
+        : new Date(ocrData.meta.processedAt).toISOString()
+
+      const formattedData = {
+        ...ocrData,
+        meta: {
+          ...ocrData.meta,
+          processedAt,
+        },
+      }
+
+      const response = await fetch(`/api/files/${fileId}/ocr-result`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ocrResult: formattedData,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update OCR result')
+      }
+
+      // Refresh job data
+      const jobResponse = await fetch(`/api/processing-jobs/${id}`)
+      if (jobResponse.ok) {
+        const updatedJob: ProcessingJobDetail = await jobResponse.json()
+        setJob(updatedJob)
+      }
+
+      // Close edit mode
+      setEditingFiles(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(fileId)
+        return newSet
+      })
+
+      alert('OCR result updated successfully!')
+    } catch (error) {
+      console.error('Error updating OCR result:', error)
+      alert(error instanceof Error ? error.message : 'Failed to update OCR result')
+    } finally {
+      setUpdatingFiles(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(fileId)
+        return newSet
+      })
+    }
   }
 
   if (isLoading) {
@@ -356,12 +727,41 @@ export default function ProcessingJobDetailPage() {
                   {hasOCRResult && isExpanded && (
                     <div
                       id={`ocr-panel-${file.id}`}
-                      className="mt-3 p-4 bg-slate-900/50 rounded-lg border border-slate-700 animate-in fade-in slide-in-from-top-2 duration-200"
+                      className="mt-3 space-y-4"
                     >
-                      <p className="text-sm font-medium text-slate-200 mb-3">OCR Result</p>
-                      <pre className="text-xs text-slate-300 overflow-x-auto max-h-80 font-mono whitespace-pre-wrap">
-                        {formatOcrDisplay(file.OCRResult)}
-                      </pre>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-slate-200">OCR Result</p>
+                        <div className="flex gap-2">
+                          {!editingFiles.has(file.id) && (
+                            <button
+                              type="button"
+                              onClick={() => toggleEditMode(file.id)}
+                              className="btn btn-sm bg-violet-600 hover:bg-violet-700 text-white"
+                            >
+                              <Edit2 className="w-3.5 h-3.5 mr-1" />
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {editingFiles.has(file.id) ? (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <OCREditForm
+                            file={file}
+                            job={job}
+                            onCancel={() => toggleEditMode(file.id)}
+                            onSubmit={(data) => handleUpdateOCR(file.id, data)}
+                            isSubmitting={updatingFiles.has(file.id)}
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                          <pre className="text-xs text-slate-300 overflow-x-auto max-h-80 font-mono whitespace-pre-wrap">
+                            {formatOcrDisplay(file.OCRResult)}
+                          </pre>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -444,4 +844,5 @@ export default function ProcessingJobDetailPage() {
     </div>
   )
 }
+
 

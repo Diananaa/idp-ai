@@ -32,46 +32,49 @@ const uploadDir = path.join(process.cwd(), 'public', 'uploads')
 type DummyOcrParams = {
   documentTypeName: string
   modelName: string
-  fileName: string
 }
 
-function generateDummyOcrJson({ documentTypeName, modelName, fileName }: DummyOcrParams) {
-  const randomConfidence = () => Number((0.82 + Math.random() * 0.15).toFixed(2))
+function generateDummyOcrJson({ documentTypeName, modelName }: DummyOcrParams) {
   const today = new Date()
   const issuedAt = new Date(today.getTime() - Math.floor(Math.random() * 14) * 24 * 60 * 60 * 1000)
+  const randomConfidence = () => Number((0.85 + Math.random() * 0.15).toFixed(2))
 
   return {
-    fileName,
-    documentType: documentTypeName,
-    model: modelName,
-    extractedAt: today.toISOString(),
-    confidence: randomConfidence(),
-    fields: {
-      documentNumber: {
-        label: 'Nomor Dokumen',
-        value: `DOC-${Math.floor(100000 + Math.random() * 900000)}`,
-        confidence: randomConfidence(),
-      },
-      ownerName: {
-        label: 'Nama Pemilik',
-        value: 'John Doe',
-        confidence: randomConfidence(),
-      },
-      issuedDate: {
-        label: 'Tanggal Terbit',
-        value: issuedAt.toISOString().split('T')[0],
-        confidence: randomConfidence(),
-      },
-      transactionValue: {
-        label: 'Nilai Transaksi',
-        value: Number(50000000 + Math.random() * 25000000),
-        currency: 'IDR',
-        confidence: randomConfidence(),
-      },
+    meta: {
+      documentType: documentTypeName,
+      model: modelName,
+      processedAt: today.toISOString(),
     },
-    notes: [
-      'Ini hanya data dummy untuk pengujian form OCR.',
-      'Silakan ganti dengan hasil OCR asli saat backend siap.',
+    fields: [
+      {
+        name: 'documentNumber',
+        value: {
+          value: `DOC-${Math.floor(100000 + Math.random() * 900000)}`,
+          confidence: randomConfidence(),
+        },
+      },
+      {
+        name: 'ownerName',
+        value: {
+          value: 'John Doe',
+          confidence: randomConfidence(),
+        },
+      },
+      {
+        name: 'issuedDate',
+        value: {
+          value: issuedAt.toISOString().split('T')[0],
+          confidence: randomConfidence(),
+        },
+      },
+      {
+        name: 'transactionValue',
+        value: {
+          value: Number(50000000 + Math.random() * 25000000),
+          currency: 'IDR',
+          confidence: randomConfidence(),
+        },
+      },
     ],
   }
 }
@@ -220,9 +223,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const ocrData = generateDummyOcrJson({
           documentTypeName: documentType.name,
           modelName: model.name,
-          fileName: originalFileName,
         })
-        createdFile.OCRResult = JSON.stringify(ocrData, null, 2)
+        const formatted = JSON.stringify(ocrData)
+        createdFile.OCRResult = formatted
 
         return { entity: createdFile, ocrData }
       })
@@ -237,6 +240,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       savedJob.resultJson = JSON.stringify(aggregatedResult)
+      console.log('aggregatedResult',aggregatedResult)
       await processingJobRepo.save(savedJob)
 
       const jobWithRelations = await processingJobRepo.findOne({
