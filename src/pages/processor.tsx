@@ -113,6 +113,67 @@ const fetchModels = async () => {
     }
   };
 
+  const convertPdfToPngPages = async (pdfFile: File) => {
+    if (typeof window === "undefined") {
+      return [pdfFile]
+    }
+
+    const pdfjsLib = await import("pdfjs-dist")
+
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.394/build/pdf.worker.min.mjs"
+    }
+
+    const pdfData = await pdfFile.arrayBuffer()
+    const pdf = await pdfjsLib
+      .getDocument({
+        data: pdfData,
+      })
+      .promise
+
+    const pages: File[] = []
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      const page = await pdf.getPage(pageNumber)
+      const viewport = page.getViewport({ scale: 2 })
+      const canvas = document.createElement("canvas")
+      const context = canvas.getContext("2d")
+
+      if (!context) {
+        throw new Error("Canvas context is not available")
+      }
+
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+
+      await page.render({
+        canvasContext: context,
+        viewport,
+        canvas,
+      }).promise
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (result) => {
+            if (result) {
+              resolve(result)
+            } else {
+              reject(new Error("Failed to convert canvas to blob"))
+            }
+          },
+          "image/png",
+          1
+        )
+      })
+
+      const fileName = pdfFile.name.replace(/\.pdf$/i, `-page-${pageNumber}.png`)
+      pages.push(new File([blob], fileName, { type: "image/png" }))
+    }
+
+    return pages
+  }
+
   const handleProcess = async () => {
     if (!files.length || !documentTypeId || !ocrModelId) return
 
@@ -123,11 +184,29 @@ const fetchModels = async () => {
     const formData = new FormData()
     formData.append("documentTypeId", documentTypeId)
     formData.append("modelId", ocrModelId)
-    files.forEach(({ file }) => {
-      formData.append("files", file)
-    })
 
     try {
+      const convertedFileGroups = await Promise.all(
+        files.map(async ({ file }) => {
+          const isPdf =
+            file.type === "application/pdf" ||
+            file.name.toLowerCase().endsWith(".pdf")
+          if (!isPdf) {
+            return [file]
+          }
+
+          return await convertPdfToPngPages(file)
+        })
+      )
+
+      const convertedFiles = convertedFileGroups.flat()
+
+      convertedFiles.forEach((file) => {
+        formData.append("files", file)
+      })
+
+      setProgress(30)
+
       const response = await fetch("/api/processing-jobs", {
         method: "POST",
         body: formData,

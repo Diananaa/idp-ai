@@ -25,9 +25,10 @@ type ParsedUploadPayload = {
   documentTypeId: number
   modelId: number
   files: FormidableFile[]
+  uploadSubDir: string
 }
 
-const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+const uploadRootDir = path.join(process.cwd(), 'public', 'uploads')
 
 type DummyOcrParams = {
   documentTypeName: string
@@ -79,8 +80,8 @@ function generateDummyOcrJson({ documentTypeName, modelName }: DummyOcrParams) {
   }
 }
 
-async function ensureUploadDir() {
-  await fs.mkdir(uploadDir, { recursive: true })
+async function ensureUploadDir(dir = uploadRootDir) {
+  await fs.mkdir(dir, { recursive: true })
 }
 
 function normalizeFieldValue(value?: string | string[]): string | undefined {
@@ -93,9 +94,13 @@ function normalizeFieldValue(value?: string | string[]): string | undefined {
 async function parseMultipartRequest(req: NextApiRequest): Promise<ParsedUploadPayload> {
   await ensureUploadDir()
 
+  const requestFolderName = `job_${Date.now()}_${randomUUID()}`
+  const requestUploadDir = path.join(uploadRootDir, requestFolderName)
+  await ensureUploadDir(requestUploadDir)
+
   const form = formidable({
     multiples: true,
-    uploadDir,
+    uploadDir: requestUploadDir,
     keepExtensions: true,
     maxFileSize: 20 * 1024 * 1024, // 20MB per file
     filename: (_name: string, _ext: string, part: FormidablePart) => {
@@ -141,6 +146,7 @@ async function parseMultipartRequest(req: NextApiRequest): Promise<ParsedUploadP
     documentTypeId: Number(documentTypeIdRaw),
     modelId: Number(modelIdRaw),
     files: parsedFiles,
+    uploadSubDir: requestFolderName,
   }
 }
 
@@ -209,8 +215,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const originalFileName = file.originalFilename ?? file.newFilename ?? 'file'
         const storedFilePath = file.filepath ?? file.newFilename
         const relativeFilePath = storedFilePath
-          ? path.join('uploads', path.basename(storedFilePath))
-          : path.join('uploads', `${randomUUID()}_${originalFileName}`)
+          ? path.join('uploads', payload.uploadSubDir, path.basename(storedFilePath))
+          : path.join('uploads', payload.uploadSubDir, `${randomUUID()}_${originalFileName}`)
 
         const createdFile = new ProcessingFile()
         createdFile.processingJob = savedJob
