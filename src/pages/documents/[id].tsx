@@ -339,6 +339,7 @@ export default function ProcessingJobDetailPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [editingFiles, setEditingFiles] = useState<Set<number>>(new Set())
   const [updatingFiles, setUpdatingFiles] = useState<Set<number>>(new Set())
+  const [selectedFileId, setSelectedFileId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return
@@ -367,6 +368,16 @@ export default function ProcessingJobDetailPage() {
 
     fetchJobDetail()
   }, [id])
+
+  // Auto-select first file when job is loaded
+  useEffect(() => {
+    if (job && job.files && job.files.length > 0 && selectedFileId === null) {
+      setSelectedFileId(job.files[0].id)
+      if (job.files[0].OCRResult) {
+        setExpandedFiles(new Set([job.files[0].id]))
+      }
+    }
+  }, [job, selectedFileId])
 
   const handleDelete = async () => {
     if (!job) {
@@ -638,135 +649,280 @@ export default function ProcessingJobDetailPage() {
             <p className="text-slate-400 text-lg">No files associated with this job</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {job.files.map((file) => {
-              const isExpanded = expandedFiles.has(file.id)
-              const hasOCRResult = !!file.OCRResult
-              const normalizedPath = file.filePath
-                ? `/${file.filePath.replace(/^\/+/, "").replace(/\\/g, "/")}`
-                : null
-              
-              return (
-                <div
-                  key={file.id}
-                  className="group bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl p-5 border border-slate-600 hover:border-violet-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-violet-500/10"
-                >
-                  {/* File Header */}
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="flex-shrink-0 p-3 bg-slate-600 rounded-lg group-hover:bg-violet-500/20 transition-colors">
-                      {getFileIcon(file.fileType)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-semibold text-base mb-2 truncate group-hover:text-violet-300 transition-colors">
-                        {file.fileName}
-                      </h3>
-                      <div className="flex flex-wrap gap-3 text-xs">
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <HardDrive className="w-3.5 h-3.5" />
-                          <span>{formatFileSize(file.fileSize)}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <File className="w-3.5 h-3.5" />
-                          <span>{file.fileType?.split('/').pop() ?? "Unknown"}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>{file.processTime}ms</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <span className={`badge badge-sm ${
-                        file.status === 'COMPLETED' ? 'badge-success' :
-                        file.status === 'PROCESSING' ? 'badge-warning' :
-                        file.status === 'FAILED' ? 'badge-error' :
-                        'badge-info'
-                      }`}>
-                        {file.status}
-                      </span>
-                      {hasOCRResult && (
-                        <button
-                          type="button"
-                          onClick={() => toggleFileExpansion(file.id)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-3 py-1 text-xs font-medium text-slate-200 transition-colors hover:border-violet-400 hover:text-white"
-                          aria-expanded={isExpanded}
-                          aria-controls={`ocr-panel-${file.id}`}
-                        >
-                          {isExpanded ? 'Sembunyikan OCR' : 'Lihat OCR'}
-                          {isExpanded ? (
-                            <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_600px] gap-6 h-[calc(100vh-400px)] min-h-[600px]">
+            {/* Left Side: Preview + Horizontal Image List */}
+            <div className="flex flex-col min-h-0">
+              {/* Preview Image - Top */}
+              {selectedFileId ? (() => {
+                const file = job.files.find(f => f.id === selectedFileId)
+                if (!file) return null
+                
+                const normalizedPath = file.filePath
+                  ? `/${file.filePath.replace(/^\/+/, "").replace(/\\/g, "/")}`
+                  : null
 
-                  {/* File Metadata */}
-                  <div className="flex items-center gap-2 text-xs text-slate-500 mb-4 pb-4 border-b border-slate-600">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>Created: {formatDate(file.createdAt)}</span>
-                  </div>
-
-                  {normalizedPath && (
-                    <div className="mb-4">
-                      <Link
-                        href={normalizedPath}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm text-violet-300 hover:text-white font-medium transition-colors"
-                      >
-                        View file
-                        <FileText className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  )}
-
-                  {/* OCR Result Section */}
-                  {hasOCRResult && isExpanded && (
-                    <div
-                      id={`ocr-panel-${file.id}`}
-                      className="mt-3 space-y-4"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-slate-200">OCR Result</p>
-                        <div className="flex gap-2">
-                          {!editingFiles.has(file.id) && (
-                            <button
-                              type="button"
-                              onClick={() => toggleEditMode(file.id)}
-                              className="btn btn-sm bg-violet-600 hover:bg-violet-700 text-white"
-                            >
-                              <Edit2 className="w-3.5 h-3.5 mr-1" />
-                              Edit
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {editingFiles.has(file.id) ? (
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <OCREditForm
-                            file={file}
-                            job={job}
-                            onCancel={() => toggleEditMode(file.id)}
-                            onSubmit={(data) => handleUpdateOCR(file.id, data)}
-                            isSubmitting={updatingFiles.has(file.id)}
+                return (
+                  <div className="mb-4 flex-1 min-h-0 flex flex-col">
+                    <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl p-4 border border-slate-600 flex-1 flex items-center justify-center min-h-[400px]">
+                      {normalizedPath ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <img
+                            src={normalizedPath}
+                            alt={file.fileName}
+                            className="max-w-full max-h-full object-contain rounded-lg"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement
+                              target.style.display = 'none'
+                              const parent = target.parentElement
+                              if (parent) {
+                                const fallback = document.createElement('div')
+                                fallback.className = 'w-full h-full bg-slate-700 rounded-lg flex items-center justify-center'
+                                fallback.innerHTML = '<div class="text-slate-400">Image not available</div>'
+                                parent.appendChild(fallback)
+                              }
+                            }}
                           />
                         </div>
                       ) : (
-                        <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                          <pre className="text-xs text-slate-300 overflow-x-auto max-h-80 font-mono whitespace-pre-wrap">
-                            {formatOcrDisplay(file.OCRResult)}
-                          </pre>
+                        <div className="w-full h-full bg-slate-700 rounded-lg flex items-center justify-center">
+                          <File className="w-16 h-16 text-slate-400" />
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
+                )
+              })() : (
+                <div className="mb-4 flex-1 min-h-0 flex flex-col">
+                  <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl p-4 border border-slate-600 flex-1 flex items-center justify-center min-h-[400px]">
+                    <div className="text-center">
+                      <Image className="w-16 h-16 text-slate-500 mx-auto mb-4" />
+                      <p className="text-slate-400 text-lg">Select an image to view</p>
+                    </div>
+                  </div>
                 </div>
-              )
-            })}
+              )}
+
+              {/* Horizontal Image List - Below Preview */}
+              <div className="border-t border-slate-700 pt-4 flex-shrink-0 max-w-[500px] overflow-x-auto">
+                <h3 className="text-sm font-semibold text-white mb-3">Image List ({job.files.length})</h3>
+                <div 
+                  className="overflow-x-auto pb-2"
+                  style={{
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#475569 #1e293b'
+                  }}
+                >
+                  <div className="flex gap-3" style={{ minWidth: 'min-content' }}>
+                    {job.files.map((listFile) => {
+                      const listNormalizedPath = listFile.filePath
+                        ? `/${listFile.filePath.replace(/^\/+/, "").replace(/\\/g, "/")}`
+                        : null
+                      const isSelected = selectedFileId === listFile.id
+                      
+                      return (
+                        <button
+                          key={listFile.id}
+                          onClick={() => {
+                            setSelectedFileId(listFile.id)
+                            if (!expandedFiles.has(listFile.id) && listFile.OCRResult) {
+                              setExpandedFiles(prev => new Set(prev).add(listFile.id))
+                            }
+                          }}
+                          className={`flex-shrink-0 w-32 rounded-lg border-2 transition-all duration-200 ${
+                            isSelected
+                              ? 'border-violet-500 bg-violet-500/10 shadow-lg shadow-violet-500/20'
+                              : 'border-slate-600 bg-slate-700/50 hover:border-slate-500 hover:bg-slate-700'
+                          }`}
+                        >
+                          {listNormalizedPath ? (
+                            <div className="p-2">
+                              <img
+                                src={listNormalizedPath}
+                                alt={listFile.fileName}
+                                className="w-full h-24 rounded-lg object-cover mb-2"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement
+                                  target.style.display = 'none'
+                                  const parent = target.parentElement
+                                  if (parent) {
+                                    const fallback = document.createElement('div')
+                                    fallback.className = 'w-full h-24 bg-slate-600 rounded-lg flex items-center justify-center mb-2'
+                                    fallback.innerHTML = '<div class="text-slate-400 text-xs">N/A</div>'
+                                    parent.insertBefore(fallback, target.nextSibling)
+                                  }
+                                }}
+                              />
+                              <p className="text-white text-xs font-medium truncate px-1">
+                                {listFile.fileName}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="p-2">
+                              <div className="w-full h-24 bg-slate-600 rounded-lg flex items-center justify-center mb-2">
+                                <File className="w-6 h-6 text-slate-400" />
+                              </div>
+                              <p className="text-white text-xs font-medium truncate px-1">
+                                {listFile.fileName}
+                              </p>
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side: File Detail & OCR */}
+            <div className="flex flex-col overflow-hidden min-h-0 lg:border-l border-slate-700 lg:pl-6">
+              {selectedFileId ? (() => {
+                const file = job.files.find(f => f.id === selectedFileId)
+                if (!file) return null
+                
+                const isExpanded = expandedFiles.has(file.id)
+                const hasOCRResult = !!file.OCRResult
+
+                return (
+                  <div className="flex-1 overflow-y-auto" style={{
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: '#475569 #1e293b'
+                  }}>
+                    <div className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl p-6 border border-slate-600">
+                      {/* File Header */}
+                      <div className="flex items-start gap-4 mb-6">
+                        <div className="flex-shrink-0 p-3 bg-slate-600 rounded-lg">
+                          {getFileIcon(file.fileType)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-white font-semibold text-lg mb-3 truncate">
+                            {file.fileName}
+                          </h3>
+                          <div className="flex flex-wrap gap-3 text-sm">
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <HardDrive className="w-4 h-4" />
+                              <span>{formatFileSize(file.fileSize)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <File className="w-4 h-4" />
+                              <span>{file.fileType?.split('/').pop() ?? "Unknown"}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <Clock className="w-4 h-4" />
+                              <span>{file.processTime}ms</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span className={`badge badge-sm ${
+                            file.status === 'COMPLETED' ? 'badge-success' :
+                            file.status === 'PROCESSING' ? 'badge-warning' :
+                            file.status === 'FAILED' ? 'badge-error' :
+                            'badge-info'
+                          }`}>
+                            {file.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* File Metadata */}
+                      <div className="flex items-center gap-2 text-sm text-slate-500 mb-6 pb-4 border-b border-slate-600">
+                        <Calendar className="w-4 h-4" />
+                        <span>Created: {formatDate(file.createdAt)}</span>
+                      </div>
+
+                      {/* File Link */}
+                      {file.filePath && (
+                        <div className="mb-6">
+                          <Link
+                            href={`/${file.filePath.replace(/^\/+/, "").replace(/\\/g, "/")}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 text-sm text-violet-300 hover:text-white font-medium transition-colors"
+                          >
+                            Open full image
+                            <FileText className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      )}
+
+                      {/* OCR Result Section */}
+                      {hasOCRResult && (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <p className="text-lg font-semibold text-white">OCR Result</p>
+                            <div className="flex gap-2">
+                              {!editingFiles.has(file.id) && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleEditMode(file.id)}
+                                  className="btn btn-sm bg-violet-600 hover:bg-violet-700 text-white"
+                                >
+                                  <Edit2 className="w-4 h-4 mr-1" />
+                                  Edit
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => toggleFileExpansion(file.id)}
+                                className="btn btn-sm bg-slate-600 hover:bg-slate-500 text-white"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <ChevronUp className="w-4 h-4 mr-1" />
+                                    Hide OCR
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="w-4 h-4 mr-1" />
+                                    Show OCR
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="mt-4">
+                              {editingFiles.has(file.id) ? (
+                                <div onClick={(e) => e.stopPropagation()}>
+                                  <OCREditForm
+                                    file={file}
+                                    job={job}
+                                    onCancel={() => toggleEditMode(file.id)}
+                                    onSubmit={(data) => handleUpdateOCR(file.id, data)}
+                                    isSubmitting={updatingFiles.has(file.id)}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                                  <pre className="text-sm text-slate-300 overflow-x-auto max-h-[500px] font-mono whitespace-pre-wrap overflow-y-auto">
+                                    {formatOcrDisplay(file.OCRResult)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {!hasOCRResult && (
+                        <div className="text-center py-8 bg-slate-900/50 rounded-lg border border-slate-700">
+                          <p className="text-slate-400">No OCR result available for this file</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })() : (
+                <div className="flex items-center justify-center h-full bg-slate-800/50 rounded-lg border border-slate-700">
+                  <div className="text-center">
+                    <Image className="w-16 h-16 text-slate-500 mx-auto mb-4" />
+                    <p className="text-slate-400 text-lg">Select an image to view details</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
