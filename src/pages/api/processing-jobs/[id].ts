@@ -32,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where: { id: jobId },
         relations: ['documentType', 'model', 'files'],
       })
-console.log(job)
+console.log('4 job data masuk ke api', job)
       if (!job) {
         return res.status(404).json({ error: 'Processing job not found' })
       }

@@ -52,6 +52,8 @@ export default function ProcessorPage() {
   const [isLoadingTypes, setIsLoadingTypes] = useState(false);
   const [models, setModels] = useState<ModelOption[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -118,11 +120,13 @@ const fetchModels = async () => {
       return [pdfFile]
     }
 
-    const pdfjsLib = await import("pdfjs-dist")
+    // Use the browser build of pdfjs compatible with pdfjs-dist@3.x
+    const pdfjsLib = await import("pdfjs-dist/build/pdf")
 
     if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      // Use the correct worker file for pdfjs-dist@3.11.174
       pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.394/build/pdf.worker.min.mjs"
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js"
     }
 
     const pdfData = await pdfFile.arrayBuffer()
@@ -174,6 +178,15 @@ const fetchModels = async () => {
     return pages
   }
 
+  const handleReset = () => {
+    setDocumentTypeId("")
+    setOcrModelId("")
+    setResult(null)
+    setProgress(0)
+    setIsProcessing(false)
+    setFiles([])
+  }
+
   const handleProcess = async () => {
     if (!files.length || !documentTypeId || !ocrModelId) return
 
@@ -182,6 +195,7 @@ const fetchModels = async () => {
     setResult(null)
 
     const formData = new FormData()
+    console.log(' 1 formData', formData)
     formData.append("documentTypeId", documentTypeId)
     formData.append("modelId", ocrModelId)
 
@@ -204,17 +218,20 @@ const fetchModels = async () => {
       convertedFiles.forEach((file) => {
         formData.append("files", file)
       })
-
+console.log('2 convertedFiles', convertedFiles)
       setProgress(30)
 
       const response = await fetch("/api/processing-jobs", {
         method: "POST",
         body: formData,
       })
+
+      console.log('3 response', response)
       setProgress(70)
 
       if (!response.ok) {
-        throw new Error("Failed to create processing jobs")
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? "Failed to create processing jobs")
       }
 
       const data: ProcessingJobRecord = await response.json()
@@ -223,20 +240,22 @@ const fetchModels = async () => {
         files: data.files ?? [],
       })
       setProgress(100)
+      setErrorMessage(null)
+      setIsErrorModalOpen(false)
     } catch (error) {
       console.error("Error processing files:", error)
+      const message = error instanceof Error ? error.message : "Failed to process files"
+      setErrorMessage(message)
+      setIsErrorModalOpen(true)
+      handleReset()
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const handleReset = () => {
-    setDocumentTypeId("")
-    setOcrModelId("")
-    setResult(null)
-    setProgress(0)
-    setIsProcessing(false)
-    setFiles([])
+  const closeErrorModal = () => {
+    setIsErrorModalOpen(false)
+    setErrorMessage(null)
   }
   return (
     <div className="space-y-6">
@@ -372,6 +391,33 @@ const fetchModels = async () => {
           <pre className="text-sm bg-slate-900 p-3 rounded-lg overflow-x-auto">
             {JSON.stringify(result, null, 2)}
           </pre>
+        </div>
+      )}
+
+      {isErrorModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20 text-red-300">
+                <X className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm uppercase tracking-[0.2em] text-red-300">Processing Failed</p>
+                <h3 className="text-2xl font-semibold text-white">Job cancelled</h3>
+              </div>
+            </div>
+            <p className="text-slate-300 mb-6">
+              {errorMessage || "Gemini gagal memproses dokumen. Semua proses telah dibatalkan."}
+            </p>
+            <div className="flex gap-3">
+              <button
+                className="btn flex-1 bg-white text-slate-900 hover:bg-slate-100"
+                onClick={closeErrorModal}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

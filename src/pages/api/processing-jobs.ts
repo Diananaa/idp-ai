@@ -14,6 +14,7 @@ import { ProcessingJob } from '@/lib/entities/ProcessingJob'
 import { DocumentType } from '@/lib/entities/DocumentType'
 import { Model } from '@/lib/entities/Model'
 import { File as ProcessingFile } from '@/lib/entities/File'
+import { runGeminiOcrOnFile, type StructuredOcrResult } from '@/lib/ocr'
 
 export const config = {
   api: {
@@ -30,55 +31,6 @@ type ParsedUploadPayload = {
 
 const uploadRootDir = path.join(process.cwd(), 'public', 'uploads')
 
-type DummyOcrParams = {
-  documentTypeName: string
-  modelName: string
-}
-
-function generateDummyOcrJson({ documentTypeName, modelName }: DummyOcrParams) {
-  const today = new Date()
-  const issuedAt = new Date(today.getTime() - Math.floor(Math.random() * 14) * 24 * 60 * 60 * 1000)
-  const randomConfidence = () => Number((0.85 + Math.random() * 0.15).toFixed(2))
-
-  return {
-    meta: {
-      documentType: documentTypeName,
-      model: modelName,
-      processedAt: today.toISOString(),
-    },
-    fields: [
-      {
-        name: 'documentNumber',
-        value: {
-          value: `DOC-${Math.floor(100000 + Math.random() * 900000)}`,
-          confidence: randomConfidence(),
-        },
-      },
-      {
-        name: 'ownerName',
-        value: {
-          value: 'John Doe',
-          confidence: randomConfidence(),
-        },
-      },
-      {
-        name: 'issuedDate',
-        value: {
-          value: issuedAt.toISOString().split('T')[0],
-          confidence: randomConfidence(),
-        },
-      },
-      {
-        name: 'transactionValue',
-        value: {
-          value: Number(50000000 + Math.random() * 25000000),
-          currency: 'IDR',
-          confidence: randomConfidence(),
-        },
-      },
-    ],
-  }
-}
 
 async function ensureUploadDir(dir = uploadRootDir) {
   await fs.mkdir(dir, { recursive: true })
@@ -92,6 +44,7 @@ function normalizeFieldValue(value?: string | string[]): string | undefined {
 }
 
 async function parseMultipartRequest(req: NextApiRequest): Promise<ParsedUploadPayload> {
+  console.log('7 parseMultipartRequest', req.body)
   await ensureUploadDir()
 
   const requestFolderName = `job_${Date.now()}_${randomUUID()}`
@@ -151,6 +104,8 @@ async function parseMultipartRequest(req: NextApiRequest): Promise<ParsedUploadP
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  console.log('5 req.method', req)
+  console.log('6 req.body', req)
   try {
     await initDB()
   } catch (error) {
@@ -185,6 +140,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     }
 
+    const queryRunner = AppDataSource.createQueryRunner()
+    await queryRunner.connect()
+    await queryRunner.startTransaction()
+
     try {
       const documentTypeRepo = AppDataSource.getRepository(DocumentType)
       const modelRepo = AppDataSource.getRepository(Model)
@@ -209,9 +168,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: 'COMPLETED',
       })
 
-      const savedJob = await processingJobRepo.save(newJob)
+      const savedJob = await queryRunner.manager.save(newJob)
 
-      const newFiles = payload.files.map((file) => {
+      const newFiles = await Promise.all(payload.files.map(async (file) => {
         const originalFileName = file.originalFilename ?? file.newFilename ?? 'file'
         const storedFilePath = file.filepath ?? file.newFilename
         const relativeFilePath = storedFilePath
@@ -226,16 +185,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         createdFile.filePath = relativeFilePath
         createdFile.status = 'COMPLETED'
         createdFile.processTime = Math.floor(1500 + Math.random() * 2500)
-        const ocrData = generateDummyOcrJson({
+
+        const fileAbsolutePath = file.filepath
+          ? file.filepath
+          : path.join(uploadRootDir, payload.uploadSubDir, path.basename(storedFilePath || originalFileName))
+
+        const ocrData = await runGeminiOcrOnFile({
+          filePath: fileAbsolutePath,
+          fileName: originalFileName,
+          mimeType: file.mimetype,
           documentTypeName: documentType.name,
           modelName: model.name,
         })
-        const formatted = JSON.stringify(ocrData)
-        createdFile.OCRResult = formatted
+
+        createdFile.OCRResult = JSON.stringify(ocrData)
 
         return { entity: createdFile, ocrData }
-      })
-      const savedFiles = await fileRepo.save(newFiles.map(({ entity }) => entity))
+      }))
+      const savedFiles = await queryRunner.manager.save(ProcessingFile, newFiles.map(({ entity }) => entity))
 
       const aggregatedResult = {
         documentType: documentType.name,
@@ -246,8 +213,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       savedJob.resultJson = JSON.stringify(aggregatedResult)
-      console.log('aggregatedResult',aggregatedResult)
-      await processingJobRepo.save(savedJob)
+      await queryRunner.manager.save(savedJob)
+      await queryRunner.commitTransaction()
 
       const jobWithRelations = await processingJobRepo.findOne({
         where: { id: savedJob.id },
@@ -260,8 +227,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       return res.status(200).json(jobWithRelations)
     } catch (error) {
+      await queryRunner.rollbackTransaction()
       console.error('Error creating processing jobs:', error)
+      try {
+        await fs.rm(path.join(uploadRootDir, payload.uploadSubDir), { recursive: true, force: true })
+      } catch (cleanupError) {
+        console.error('Failed to cleanup upload directory:', cleanupError)
+      }
       return res.status(500).json({ error: 'Failed to create processing jobs' })
+    } finally {
+      await queryRunner.release()
     }
   }
 

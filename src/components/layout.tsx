@@ -9,12 +9,12 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     return (
         <>
             <div 
-                className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
+                className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out bg-slate-900 ${
                     isOpen ? 'md:ml-[200px]' : 'md:ml-[64px]'
                 }`}
             >
                 <Header />
-                <main className="flex-1 overflow-auto p-6 md:pl-4">{children}</main>
+                <main className="flex-1 overflow-auto p-6 md:pl-4 bg-slate-900">{children}</main>
             </div>
         </>
     )
@@ -26,14 +26,10 @@ export default function RootLayout({
     children: React.ReactNode
 }>) {
     return (
-        <html lang="en">
-            <body>
-                <SidebarProvider>
-                    <div className="flex h-screen">
-                        <LayoutContent>{children}</LayoutContent>
-                    </div>
-                </SidebarProvider>
-            </body>
-        </html>
+        <SidebarProvider>
+            <div className="flex h-screen">
+                <LayoutContent>{children}</LayoutContent>
+            </div>
+        </SidebarProvider>
     )
 }

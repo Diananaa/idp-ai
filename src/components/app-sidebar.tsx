@@ -2,7 +2,7 @@
 
 import { useState, useEffect, createContext, useContext } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { useRouter } from "next/router"
 import { ChartColumn, Cpu, BookOpenText, FileStack, Menu, X } from "lucide-react"
 
 const navigation = [
@@ -35,7 +35,8 @@ const SidebarContext = createContext<{
 export const useSidebar = () => useContext(SidebarContext)
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname()
+    const router = useRouter()
+    const pathname = router.pathname
     const [isOpen, setIsOpen] = useState<boolean | null>(null) // null = belum diinisialisasi
     const [isMobile, setIsMobile] = useState(false)
 
