@@ -4,3 +4,5 @@ const users = await response.json()
 
 console.log('Users:', users)
 
+export {}
+

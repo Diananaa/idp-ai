@@ -1,17 +1,49 @@
-version: '3.8'
 services:
-  postgres:
-    image: postgres:15
-    container_name: my_postgres
-    restart: always
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: idp_app
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypassword
-      POSTGRES_DB: mydb
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_NAME: testIDP
+      # Local Docker convenience: TypeORM creates/updates tables automatically.
+      # Turn this off and use migrations before deploying to production.
+      DB_SYNC: "true"
+      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-for-local-docker}
+      API_KEY_AI_STUDIO_GOOGLE: ${API_KEY_AI_STUDIO_GOOGLE:-}
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_data:/app/public/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: idp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: testIDP
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d testIDP"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
+  uploads_data:

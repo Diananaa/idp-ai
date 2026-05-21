@@ -38,7 +38,7 @@ export default function OCRFormPage() {
   const [result, setResult] = useState<string | null>(null)
 
   const {
-    register,j
+    register,
     control,
     handleSubmit,
     formState: { errors },
