@@ -3,7 +3,7 @@
 import { useState, useEffect, createContext, useContext } from "react"
 import Link from "next/link"
 import { useRouter } from "next/router"
-import { ChartColumn, Cpu, BookOpenText, FileStack, Menu, X } from "lucide-react"
+import { ChartColumn, Cpu, BookOpenText, FileStack, Menu, X, CheckCircle } from "lucide-react"
 
 const navigation = [
     {
@@ -21,6 +21,11 @@ const navigation = [
         href: "/documents",
         icon: FileStack,
     },
+    {
+        name : "Verifikasi",
+        href : "/verifikasi",
+        icon : CheckCircle,
+    }
 ]
 
 // Create context for sidebar state

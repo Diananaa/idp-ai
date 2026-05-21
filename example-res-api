@@ -1,3 +1,10 @@
+data karyawan :
+- nama
+- alamat
+- nip
+- jabatan
+
+
 tabel user:
 {
     id: 'number',
